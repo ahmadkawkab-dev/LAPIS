@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from "react";
+import { useRef, useState, type FormEvent } from "react";
 import {
   ArrowUpRight,
   CheckCircle2,
@@ -7,11 +7,14 @@ import {
   UsersRound,
 } from "lucide-react";
 import type { BoardListItemDto } from "../../api";
-import { errorMessage } from "../../api";
+import { AuthApiError, errorMessage } from "../../api";
 import { BrandMark } from "../../components/brand/BrandMark";
 import { Button } from "../../components/ui/Button";
 import { BoardActionsDialog } from "./BoardActionsDialog";
 import { BoardPreview } from "./BoardPreview";
+
+const MAX_OWNED_BOARDS = 5;
+const LIMIT_WARNING_COOLDOWN_MS = 10_000;
 
 const relativeTimeFormatter = new Intl.RelativeTimeFormat(undefined, {
   numeric: "auto",
@@ -163,6 +166,7 @@ export function BoardLanding({
   retry,
   navigate,
   create,
+  onBoardLimitReached,
   onRenameBoard,
   onDeleteBoard,
 }: {
@@ -173,6 +177,7 @@ export function BoardLanding({
   retry: () => void;
   navigate: (path: string) => void;
   create: (title: string) => Promise<void>;
+  onBoardLimitReached: () => void;
   onRenameBoard: (id: string, title: string) => Promise<void>;
   onDeleteBoard: (id: string) => Promise<void>;
 }) {
@@ -181,6 +186,7 @@ export function BoardLanding({
   const [title, setTitle] = useState("");
   const [createError, setCreateError] = useState("");
   const [busy, setBusy] = useState(false);
+  const lastLimitWarningAt = useRef(0);
   const greetingName = displayName?.trim();
   const normalizedQuery = query.trim().toLocaleLowerCase();
   const shown = normalizedQuery
@@ -190,9 +196,30 @@ export function BoardLanding({
     : boards;
   const owned = shown.filter((board) => board.role === 1);
   const shared = shown.filter((board) => board.role !== 1);
+  const atBoardLimit = boards.filter((board) => board.role === 1).length >= MAX_OWNED_BOARDS;
+
+  function warnAboutLimit() {
+    const now = Date.now();
+    if (now - lastLimitWarningAt.current < LIMIT_WARNING_COOLDOWN_MS) return;
+    lastLimitWarningAt.current = now;
+    onBoardLimitReached();
+  }
+
+  function openCreateForm() {
+    if (atBoardLimit) {
+      warnAboutLimit();
+      return;
+    }
+    setCreating(true);
+  }
 
   async function submit(event: FormEvent) {
     event.preventDefault();
+    if (atBoardLimit) {
+      setCreating(false);
+      warnAboutLimit();
+      return;
+    }
     const nextTitle = title.trim();
     if (!nextTitle) return;
     setBusy(true);
@@ -202,7 +229,13 @@ export function BoardLanding({
       setTitle("");
       setCreating(false);
     } catch (cause) {
-      setCreateError(errorMessage(cause));
+      if (cause instanceof AuthApiError && cause.code === "board_limit_reached") {
+        setCreating(false);
+        setCreateError("");
+        warnAboutLimit();
+      } else {
+        setCreateError(errorMessage(cause));
+      }
     } finally {
       setBusy(false);
     }
@@ -217,7 +250,7 @@ export function BoardLanding({
             <h1>Good to see you{greetingName ? `, ${greetingName}` : ""}.</h1>
             <p>Your space is taking shape.</p>
           </div>
-          <Button onClick={() => setCreating(true)}>
+          <Button onClick={openCreateForm} aria-disabled={atBoardLimit}>
             <Plus size={18} aria-hidden="true" />
             New board
           </Button>
@@ -238,7 +271,7 @@ export function BoardLanding({
               />
               {createError ? <p role="alert">{createError}</p> : null}
             </div>
-            <Button type="submit" disabled={busy || !title.trim()}>
+            <Button type="submit" disabled={busy || !title.trim()} aria-disabled={atBoardLimit}>
               {busy ? "Creating…" : "Create board"}
             </Button>
             <Button
@@ -290,7 +323,7 @@ export function BoardLanding({
                   <h2 id="owned-boards-heading">Your boards</h2>
                   <span aria-label={`${owned.length} ${owned.length === 1 ? "board" : "boards"}`}>{owned.length}</span>
                 </div>
-                <p>Boards you created and guide.</p>
+                <p>Boards you created and guided.</p>
               </div>
               {owned.length > 0 ? (
                 <BoardGrid boards={owned} navigate={navigate}
@@ -300,7 +333,7 @@ export function BoardLanding({
                   <BrandMark />
                   <h3>Your Wukna starts here.</h3>
                   <p>Create your first board and begin gathering ideas.</p>
-                  <Button onClick={() => setCreating(true)}>
+                  <Button onClick={openCreateForm} aria-disabled={atBoardLimit}>
                     <Plus size={18} aria-hidden="true" />
                     Create your first board
                   </Button>

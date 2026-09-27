@@ -159,6 +159,7 @@ export function errorMessage(error: unknown): string {
     invalid_credentials: "Email or password is incorrect.",
     forbidden: "You do not have permission to make this change.",
     not_found: "This item is unavailable or you no longer have access.",
+    board_limit_reached: "Board limit reached. You can have a maximum of 5 boards.",
     note_version_conflict:
       "This note was modified by another board member. View the latest version before editing again.",
     note_has_checklist_items:
