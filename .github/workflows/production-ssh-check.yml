@@ -1,0 +1,57 @@
+name: Production SSH check
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check-ssh:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 5
+    steps:
+      - name: Verify runner can authenticate as deploy
+        shell: bash
+        env:
+          DEPLOY_HOST: ${{ vars.PROD_HOST }}
+          DEPLOY_USER: ${{ vars.PROD_USER }}
+          DEPLOY_KNOWN_HOSTS: ${{ vars.PROD_SSH_KNOWN_HOSTS }}
+          DEPLOY_PRIVATE_KEY: ${{ secrets.PROD_SSH_KEY }}
+        run: |
+          set -euo pipefail
+
+          : "${DEPLOY_HOST:?Set the production PROD_HOST variable}"
+          : "${DEPLOY_USER:?Set the production PROD_USER variable}"
+          : "${DEPLOY_KNOWN_HOSTS:?Set the production PROD_SSH_KNOWN_HOSTS variable}"
+          : "${DEPLOY_PRIVATE_KEY:?Set the production PROD_SSH_KEY secret}"
+
+          ssh_dir="$(mktemp -d)"
+          trap 'rm -rf "$ssh_dir"' EXIT
+          chmod 700 "$ssh_dir"
+          printf '%s\n' "$DEPLOY_PRIVATE_KEY" > "$ssh_dir/id_ed25519"
+          printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > "$ssh_dir/known_hosts"
+          chmod 600 "$ssh_dir/id_ed25519" "$ssh_dir/known_hosts"
+
+          ssh-keygen -F "$DEPLOY_HOST" -f "$ssh_dir/known_hosts" >/dev/null
+
+          remote_user="$(ssh -4 -F /dev/null \
+            -i "$ssh_dir/id_ed25519" \
+            -o IdentitiesOnly=yes \
+            -o BatchMode=yes \
+            -o ConnectTimeout=10 \
+            -o ConnectionAttempts=1 \
+            -o StrictHostKeyChecking=yes \
+            -o UserKnownHostsFile="$ssh_dir/known_hosts" \
+            -o GlobalKnownHostsFile=/dev/null \
+            -o UpdateHostKeys=no \
+            "$DEPLOY_USER@$DEPLOY_HOST" id -un)"
+
+          if [[ "$remote_user" != "$DEPLOY_USER" ]]; then
+            echo "SSH returned an unexpected user" >&2
+            exit 1
+          fi
+
+          echo "Runner reached the VPS and authenticated as $remote_user"
