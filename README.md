@@ -2,135 +2,27 @@
 
 Wukna is a visual workspace for organizing notes and checklists on shared boards. People can arrange ideas on a canvas, connect related notes, and collaborate with board members in real time.
 
-## Features
+## What Wukna does
 
-- Create, search, rename, and delete boards; invite members with view or edit access.
-- Arrange colored notes and task lists on a canvas, edit checklist items, and connect notes with related or prerequisite links.
-- See board presence, live cursors, editing indicators, and in-progress drag or resize previews through SignalR. Persisted changes remain backed by PostgreSQL.
-- Register with email and password, sign in with Google, link or unlink a Google account, and manage sessions.
-- Edit a profile display name, username, and avatar; choose an interface theme.
+- **Shared boards:** Create, search, rename, and delete boards, and invite members with view or edit access.
+- **Visual notes:** Arrange colored notes and task lists, edit checklist items, and draw related or prerequisite connections between notes.
+- **Live collaboration:** See who is on a board, follow live cursors and editing indicators, and preview drag or resize changes as they happen. Saved changes persist in PostgreSQL.
+- **Accounts and profiles:** Register with email and password or sign in with Google, manage sessions, and update a display name, username, avatar, and interface theme.
 
-Library, Journal, Pictures, and standalone Tasks are planned. Their signed-in routes show coming-soon screens; development builds also include sample-content design previews. Board chat is not implemented.
+## What's next
 
-## Tech stack
+Library, Journal, Pictures, and standalone Tasks are planned. Their signed-in routes currently show coming-soon screens; development builds also include sample-content design previews. Board chat is not implemented yet.
+
+## Technology
 
 | Area | Technology |
 | --- | --- |
 | Backend | .NET 10, ASP.NET Core Minimal APIs, Identity, SignalR |
-| Frontend | React 19, TypeScript 5.7, Vite 6, Tailwind CSS 3 |
-| Database | PostgreSQL, Entity Framework Core 10, Npgsql |
-| Authentication | JWT access tokens, rotating HttpOnly refresh cookies, CSRF protection for cookie-backed operations, Google OAuth |
-| Tests | xUnit v3 integration tests with PostgreSQL Testcontainers; Node.js frontend tests |
+| Frontend | React 19, TypeScript, Vite, Tailwind CSS |
+| Data | PostgreSQL, Entity Framework Core, Npgsql |
+| Authentication | JWT access tokens, rotating HttpOnly refresh cookies, CSRF protection, Google OAuth |
 
-The repository includes an Nginx configuration for serving built frontend assets. It does not include a Dockerfile, Compose stack, or a configured production API reverse proxy. Docker is needed to run the backend integration tests.
-
-## Project structure
-
-```text
-Features/                    Backend feature endpoints, domain code, and realtime services
-Shared/Data/                 EF Core context and design-time factory
-Migrations/                  EF Core migrations
-frontend/src/                React application
-frontend/tests/              Frontend tests
-tests/Wukna.IntegrationTests/ Backend integration tests
-frontend/nginx.conf          Static frontend server configuration
-```
-
-The application, .NET projects, namespaces, frontend package, and local PostgreSQL database use the Wukna name.
-
-## Prerequisites
-
-- .NET SDK 10
-- PostgreSQL with a database and user you can use for local development
-- Node.js and npm (the repository does not pin a Node.js version)
-- A Google OAuth web application client for running the API
-- Docker with a running daemon for backend integration tests
-
-## Getting started
-
-Run commands from the repository root unless a step says otherwise.
-
-### 1. Clone and restore tools
-
-```sh
-git clone <repository-url>
-cd <repository-directory>
-dotnet restore
-dotnet tool restore
-```
-
-### 2. Configure local secrets
-
-Set a PostgreSQL connection string in your shell. Keep this variable set when applying migrations and running the API; EF's design-time factory reads environment variables, but does not load User Secrets.
-
-```sh
-export ConnectionStrings__Postgres='Host=localhost;Port=5432;Database=wukna;Username=<user>;Password=<password>'
-```
-
-Set the required JWT signing key and Google OAuth credentials with .NET User Secrets. The signing key must be at least 32 bytes. `appsettings.json` supplies the development JWT issuer, audience, lifetimes, and frontend origin; override them through configuration if your setup differs.
-
-```sh
-dotnet user-secrets set 'Jwt:SigningKey' '<at-least-32-byte-random-secret>'
-dotnet user-secrets set 'Authentication:Google:ClientId' '<google-client-id>'
-dotnet user-secrets set 'Authentication:Google:ClientSecret' '<google-client-secret>'
-```
-
-Register `http://localhost:5173/api/auth/external/google/provider-callback` as an authorized redirect URI for the Google OAuth client. Start sign-in through the frontend origin so Vite can proxy the callback to the API.
-
-
-### 3. Run the API
-
-```sh
-dotnet run --launch-profile http
-```
-
-The development API listens on `http://localhost:8080`; `GET /health` checks whether the process is responding. Profile images are stored under `App_Data/profile-images` by default, so the API process needs write access there.
-
-### 4. Run the frontend
-
-In a second terminal:
-
-```sh
-cd frontend
-npm ci
-npm run dev
-```
-
-Open `http://localhost:5173`. Vite proxies `/api` and `/hubs` to the API at `http://localhost:8080`.
-
-## Configuration
-
-ASP.NET Core loads `appsettings.json`, environment variables, and User Secrets in Development. The required settings are `ConnectionStrings:Postgres`, `Jwt:SigningKey`, `Authentication:Google:ClientId`, and `Authentication:Google:ClientSecret`. `Authentication:Google:FrontendBaseUrl` defaults to the local Vite origin. `ProfileImages:Directory` can override the profile image storage path.
-
-The included `.env.example` is a template; neither the API nor Vite automatically loads it as an application configuration file. The Vite proxy target is currently fixed in `frontend/vite.config.ts`. The existing User Secrets ID is retained so local signing and Google credentials continue to load; if a saved `ConnectionStrings:Postgres` secret overrides `appsettings.json`, change its database component to `wukna`. A few short-lived authentication cookie and Data Protection names retain their old cryptographic identifiers for rollout compatibility. For deployment, the frontend, `/api`, and `/hubs` need a shared origin with API and WebSocket proxying; the included Nginx file serves static assets only.
-
-## Database migrations
-
-Migrations live in `Migrations/`. The product rename did not reset or add to migration history. Historical generated migration target models intentionally retain their original `Lapis.Features.*` CLR entity strings; the current `WuknaDbContextModelSnapshot` uses the renamed CLR entities, and the database schema/table names are unchanged. After changing the EF Core model, create a migration from the repository root with `dotnet ef migrations add <MigrationName>`, review it, and apply it with `dotnet ef database update`. The design-time factory uses the same PostgreSQL `snake_case` naming convention as the API. Set `ConnectionStrings__Postgres` for both commands.
-
-## Testing and builds
-
-The backend tests start an isolated PostgreSQL 17 container and apply migrations there. They require a working Docker daemon.
-
-```sh
-dotnet test --project tests/Wukna.IntegrationTests/Wukna.IntegrationTests.csproj
-```
-
-The frontend has Node.js tests, a TypeScript check, and a production build:
-
-```sh
-cd frontend
-npm ci
-npm test
-npm run typecheck
-npm run build
-```
-
-## Security and project status
-
-Keep database credentials, JWT signing keys, OAuth credentials, and exported session data out of Git. Use User Secrets or environment variables locally and a secret manager in deployment. The current realtime registry runs in process; a multi-instance deployment needs additional shared coordination and a shared ASP.NET Core Data Protection key ring. Production containerization and deployment configuration are not provided here.
-
-Wukna is under active development. The features listed above exist in the current source tree, while the planned areas are UI previews or coming-soon screens without persistent backend features.
+Wukna is under active development. The features above are implemented; planned areas remain previews or coming-soon screens.
 
 ## License
 
