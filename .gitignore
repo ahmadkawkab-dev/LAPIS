@@ -2,6 +2,8 @@
 **/bin/
 **/obj/
 artifacts/
+**/__pycache__/
+*.pyc
 
 # .NET test and coverage output
 TestResults/
@@ -75,11 +77,6 @@ Desktop.ini
 *.bak
 *~
 
-# Ignore Markdown documentation
+# Ignore Markdown documentation except the root README
 *.md
-
-
-
-# Keep the root README tracked
 !/README.md
-
