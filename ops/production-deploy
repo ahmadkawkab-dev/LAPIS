@@ -1,0 +1,114 @@
+#!/bin/bash -p
+set -euo pipefail
+
+# Install as root:root, mode 0755, at /usr/local/sbin/wukna-deploy.
+# The deploy account must not be able to modify this script, the Compose file,
+# or the production environment file.
+PATH=/usr/sbin:/usr/bin:/sbin:/bin
+umask 077
+
+compose_file=/home/ubuntu/wukna-deploy/compose.production.yaml
+env_file=/etc/wukna/production.env
+docker=/usr/bin/docker
+
+usage() {
+  echo "Usage: wukna-deploy {check|deploy} <40-character lowercase commit SHA>" >&2
+  exit 2
+}
+
+[[ $# -eq 2 && ( "$1" == check || "$1" == deploy ) && "$2" =~ ^[0-9a-f]{40}$ ]] || usage
+mode=$1
+sha=$2
+
+if [[ $(id -u) -ne 0 ]]; then
+  echo "Run this helper through its restricted sudo rule" >&2
+  exit 1
+fi
+
+if [[ ! -f "$compose_file" || -L "$compose_file" ]]; then
+  echo "The fixed production Compose file is missing or is a symlink" >&2
+  exit 1
+fi
+
+if [[ ! -f "$env_file" || -L "$env_file" ]]; then
+  echo "The protected production environment file is missing or is a symlink" >&2
+  exit 1
+fi
+
+env_dir_owner=$(stat -c '%u' "${env_file%/*}")
+env_dir_mode=$(stat -c '%a' "${env_file%/*}")
+if [[ "$env_dir_owner" != 0 || "$env_dir_mode" != 700 ]]; then
+  echo "The production environment directory must be root-owned and mode 0700" >&2
+  exit 1
+fi
+
+env_owner=$(stat -c '%u' "$env_file")
+env_mode=$(stat -c '%a' "$env_file")
+if [[ "$env_owner" != 0 || ( "$env_mode" != 600 && "$env_mode" != 400 ) ]]; then
+  echo "The production environment file must be root-owned and mode 0600 or 0400" >&2
+  exit 1
+fi
+
+exec 9>/run/wukna-deploy.lock
+if ! flock -n 9; then
+  echo "Another Wukna deployment is already running" >&2
+  exit 1
+fi
+
+compose() {
+  /usr/bin/env -i PATH="$PATH" HOME=/root WUKNA_IMAGE_SHA="$sha" \
+    "$docker" compose \
+    --project-directory /home/ubuntu/wukna-deploy \
+    --env-file "$env_file" \
+    -f "$compose_file" "$@"
+}
+
+compose config --quiet
+
+db_id=$(compose ps --all -q db)
+if [[ -z "$db_id" || $("$docker" inspect -f '{{.State.Health.Status}}' "$db_id") != healthy ]]; then
+  echo "The existing database container is not healthy; stopping before deployment" >&2
+  exit 1
+fi
+
+current_api_id=$(compose ps -q api)
+if [[ -n "$current_api_id" ]]; then
+  current_image=$("$docker" inspect -f '{{.Config.Image}}' "$current_api_id")
+  echo "Current API image: $current_image"
+fi
+
+if [[ "$mode" == check ]]; then
+  echo "Deployment preflight passed; no images pulled or containers changed"
+  exit 0
+fi
+
+echo "Pulling API and frontend images for commit $sha"
+compose pull api frontend
+compose up --detach --no-deps --pull never --wait --wait-timeout 120 api frontend
+
+for service in api frontend; do
+  container_id=$(compose ps -q "$service")
+  [[ -n "$container_id" ]] || { echo "$service is not running" >&2; exit 1; }
+  image=$("$docker" inspect -f '{{.Config.Image}}' "$container_id")
+  expected="ghcr.io/ahmadkawkab-dev/wukna-${service}:sha-${sha}"
+  if [[ "$image" != "$expected" ]]; then
+    echo "$service is running an unexpected image: $image" >&2
+    exit 1
+  fi
+done
+
+ready=false
+for attempt in {1..15}; do
+  if compose exec -T frontend wget -q -O /dev/null http://api:8080/health; then
+    ready=true
+    break
+  fi
+  sleep 2
+done
+
+if [[ "$ready" != true ]]; then
+  echo "The frontend could not reach the API health endpoint" >&2
+  exit 1
+fi
+
+echo "API and frontend are running commit $sha; basic container health passed"

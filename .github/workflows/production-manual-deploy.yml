@@ -1,0 +1,135 @@
+name: Production deployment
+
+on:
+  workflow_dispatch:
+    inputs:
+      sha:
+        description: Full 40-character SHA of a commit already merged to main
+        required: true
+        type: string
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    if: >-
+      (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main') ||
+      (github.event_name == 'workflow_run' &&
+       github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.event == 'push' &&
+       github.event.workflow_run.head_branch == 'main' &&
+       github.event.workflow_run.head_repository.full_name == github.repository)
+    runs-on: ubuntu-latest
+    environment: production
+    concurrency:
+      group: wukna-production-deploy
+      cancel-in-progress: false
+    timeout-minutes: 15
+    steps:
+      - name: Check out main history
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          ref: main
+
+      - name: Check deployment SHA
+        id: validate
+        shell: bash
+        env:
+          DEPLOY_SHA: ${{ github.event_name == 'workflow_dispatch' && inputs.sha || github.event.workflow_run.head_sha }}
+          AUTO_DEPLOY: ${{ github.event_name == 'workflow_run' }}
+          AUTO_DEPLOY_ENABLED: ${{ vars.PROD_AUTO_DEPLOY }}
+        run: |
+          set -euo pipefail
+          [[ "$DEPLOY_SHA" =~ ^[0-9a-f]{40}$ ]] || {
+            echo "Enter a full lowercase 40-character commit SHA" >&2
+            exit 1
+          }
+          if [[ "$AUTO_DEPLOY" == true && "$AUTO_DEPLOY_ENABLED" != true ]]; then
+            echo "Automatic production deployment is disabled; set production PROD_AUTO_DEPLOY=true to enable it"
+            echo 'deploy=false' >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          git fetch --no-tags origin main
+          main_sha=$(git rev-parse FETCH_HEAD)
+          git merge-base --is-ancestor "$DEPLOY_SHA" "$main_sha" || {
+            echo "The commit is not in the main branch history" >&2
+            exit 1
+          }
+          if [[ "$AUTO_DEPLOY" == true && "$DEPLOY_SHA" != "$main_sha" ]]; then
+            echo "A newer main commit superseded this automatic deployment"
+            echo 'deploy=false' >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo 'deploy=true' >> "$GITHUB_OUTPUT"
+
+      - name: Deploy the exact SHA
+        if: steps.validate.outputs.deploy == 'true'
+        shell: bash
+        env:
+          DEPLOY_SHA: ${{ github.event_name == 'workflow_dispatch' && inputs.sha || github.event.workflow_run.head_sha }}
+          DEPLOY_HOST: ${{ vars.PROD_HOST }}
+          DEPLOY_USER: ${{ vars.PROD_USER }}
+          DEPLOY_KNOWN_HOSTS: ${{ vars.PROD_SSH_KNOWN_HOSTS }}
+          DEPLOY_PRIVATE_KEY: ${{ secrets.PROD_SSH_KEY }}
+        run: |
+          set -euo pipefail
+
+          : "${DEPLOY_HOST:?Set the production PROD_HOST variable}"
+          : "${DEPLOY_USER:?Set the production PROD_USER variable}"
+          : "${DEPLOY_KNOWN_HOSTS:?Set the production PROD_SSH_KNOWN_HOSTS variable}"
+          : "${DEPLOY_PRIVATE_KEY:?Set the production PROD_SSH_KEY secret}"
+          [[ "$DEPLOY_SHA" =~ ^[0-9a-f]{40}$ ]]
+
+          ssh_dir="$(mktemp -d)"
+          trap 'rm -rf "$ssh_dir"' EXIT
+          chmod 700 "$ssh_dir"
+          printf '%s\n' "$DEPLOY_PRIVATE_KEY" > "$ssh_dir/id_ed25519"
+          printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > "$ssh_dir/known_hosts"
+          chmod 600 "$ssh_dir/id_ed25519" "$ssh_dir/known_hosts"
+
+          ssh-keygen -F "$DEPLOY_HOST" -f "$ssh_dir/known_hosts" >/dev/null
+
+          ssh_options=(
+            -4 -F /dev/null
+            -i "$ssh_dir/id_ed25519"
+            -o IdentitiesOnly=yes
+            -o BatchMode=yes
+            -o ConnectTimeout=10
+            -o ConnectionAttempts=1
+            -o StrictHostKeyChecking=yes
+            -o UserKnownHostsFile="$ssh_dir/known_hosts"
+            -o GlobalKnownHostsFile=/dev/null
+            -o UpdateHostKeys=no
+          )
+          target="$DEPLOY_USER@$DEPLOY_HOST"
+
+          preflight=$(ssh "${ssh_options[@]}" "$target" \
+            "sudo -n /usr/local/sbin/wukna-deploy check $DEPLOY_SHA")
+          printf '%s\n' "$preflight"
+          current_image=$(printf '%s\n' "$preflight" | sed -n 's/^Current API image: //p')
+          if [[ ! "$current_image" =~ ^ghcr\.io/ahmadkawkab-dev/wukna-api:sha-([0-9a-f]{40})$ ]]; then
+            echo "Could not identify the running API commit SHA" >&2
+            exit 1
+          fi
+          current_sha="${BASH_REMATCH[1]}"
+          git cat-file -e "$current_sha^{commit}" || {
+            echo "The running API commit is not in this repository history" >&2
+            exit 1
+          }
+          git merge-base --is-ancestor "$current_sha" refs/remotes/origin/main || {
+            echo "The running API commit is not in the main branch history" >&2
+            exit 1
+          }
+          git diff --quiet "$current_sha" "$DEPLOY_SHA" -- Migrations/ || {
+            echo "Migration files differ from the running release; deploy through the reviewed migration procedure" >&2
+            exit 1
+          }
+
+          ssh "${ssh_options[@]}" "$target" \
+            "sudo -n /usr/local/sbin/wukna-deploy deploy $DEPLOY_SHA"
