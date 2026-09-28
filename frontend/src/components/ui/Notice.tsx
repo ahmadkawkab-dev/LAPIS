@@ -1,8 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
-import { X } from 'lucide-react';
+import { AlertTriangle, X } from 'lucide-react';
 import { IconButton } from './Button';
 
-export function Notice({ message, onDismiss }: { message: string; onDismiss: () => void }) {
+export function Notice({ message, tone = 'default', onDismiss }: {
+  message: string;
+  tone?: 'default' | 'warning';
+  onDismiss: () => void;
+}) {
   const [closing, setClosing] = useState(false);
   const dismissRef = useRef(onDismiss);
   const manualRemove = useRef<number | null>(null);
@@ -29,8 +33,9 @@ export function Notice({ message, onDismiss }: { message: string; onDismiss: () 
     }, 200);
   }
   return (
-    <div className={`wk-notice${closing ? ' wk-notice--closing' : ''}`}>
-      <p role="status" aria-atomic="true">{message}</p>
+    <div className={`wk-notice${tone === 'warning' ? ' wk-notice--warning' : ''}${closing ? ' wk-notice--closing' : ''}`}>
+      {tone === 'warning' ? <AlertTriangle size={18} aria-hidden="true" /> : null}
+      <p role={tone === 'warning' ? 'alert' : 'status'} aria-atomic="true">{message}</p>
       <IconButton label="Dismiss notification" onClick={close}><X size={18} aria-hidden="true" /></IconButton>
     </div>
   );

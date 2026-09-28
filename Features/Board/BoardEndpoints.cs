@@ -18,6 +18,8 @@ public sealed record BoardMemberDto(
 
 public static class BoardEndpoints
 {
+    private const int MaxOwnedBoards = 5;
+
     public static IEndpointRouteBuilder MapBoardEndpoints(this IEndpointRouteBuilder endpoints)
     {
         var group = endpoints.MapGroup("/api/boards").RequireAuthorization();
@@ -63,6 +65,20 @@ public static class BoardEndpoints
             if (string.IsNullOrWhiteSpace(title) || title.Length > 200)
                 return Results.BadRequest(new { error = "Title must contain 1 to 200 characters." });
 
+            await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
+            // Serialize board creation for this user, including requests handled by other servers.
+            var users = await db.Users
+                .FromSqlInterpolated($"SELECT * FROM asp_net_users WHERE id = {userId} FOR UPDATE")
+                .AsNoTracking()
+                .ToListAsync(cancellationToken);
+            if (users.Count == 0) return Results.Unauthorized();
+
+            var ownedCount = await db.BoardMemberships.CountAsync(
+                membership => membership.UserId == userId && membership.Role == BoardRole.Owner,
+                cancellationToken);
+            if (ownedCount >= MaxOwnedBoards)
+                return Results.Conflict(new { error = "board_limit_reached" });
+
             var board = new Board { Title = title };
             activity.Initialize(board);
             board.Memberships.Add(new BoardMembership
@@ -73,6 +89,7 @@ public static class BoardEndpoints
             });
             db.Boards.Add(board);
             await db.SaveChangesAsync(cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
 
             var response = new BoardDetailDto(
                 board.Id, board.Title, board.CreatedAt, board.UpdatedAt, BoardRole.Owner, true);

@@ -3,9 +3,10 @@ import { CursorRenderStore } from "../../../realtime/cursorRenderStore";
 import { realtimeConnection } from "../../../realtime/connection";
 import { applyCursorMoved, applyCursorStopped, shouldAcceptCursorMoved, type BoardCursorsByConnection } from "../../../realtime/cursors";
 import type { BoardCursorMovedEvent, BoardCursorStoppedEvent } from "../../../realtime/events";
+import type { BoardCamera } from "../boardZoom";
 import { clientPointToBoard } from "../boardViewport";
 
-export function useBoardCursors(id: string, currentUserId: string, canvasRef: RefObject<HTMLDivElement | null>) {
+export function useBoardCursors(id: string, currentUserId: string, canvasRef: RefObject<HTMLDivElement | null>, getCamera: () => BoardCamera) {
   const [cursorStore] = useState(() => new CursorRenderStore());
   const cursorSequence = useRef(0);
   const remoteCursorsRef = useRef<BoardCursorsByConnection>({});
@@ -98,7 +99,7 @@ export function useBoardCursors(id: string, currentUserId: string, canvasRef: Re
     state.active = true;
     state.pending = clientPointToBoard(
       rect,
-      { left: canvas.scrollLeft, top: canvas.scrollTop },
+      getCamera(),
       { x: event.clientX, y: event.clientY },
     );
     const remaining = 75 - (performance.now() - state.lastSentAt);
@@ -108,7 +109,7 @@ export function useBoardCursors(id: string, currentUserId: string, canvasRef: Re
     }
     if (state.timer === null)
       state.timer = setTimeout(flushLocalCursor, Math.max(0, remaining));
-  }, [flushLocalCursor]);
+  }, [flushLocalCursor, canvasRef, getCamera]);
   useEffect(() => () => {
     for (const timer of remoteCursorTimers.current.values()) clearTimeout(timer);
     remoteCursorTimers.current.clear();

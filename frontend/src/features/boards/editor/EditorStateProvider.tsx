@@ -1,3 +1,4 @@
+import type { NoteDto, PatchNote } from "../../../api";
 import {
   createContext,
   useContext,
@@ -17,6 +18,10 @@ import type {
 } from "./editorState.ts";
 
 type EditorActions = {
+  createNote: (note: NoteDto) => void;
+  updateCreation: (noteId: string, changes: PatchNote) => void;
+  getCreation: (noteId: string) => ReturnType<EditorStateController["getCreations"]>[string] | undefined;
+  commitCreation: (noteId: string, save: (note: NoteDto) => Promise<NoteDto>, force?: boolean) => Promise<NoteDto | null>;
   hydrate: (notes: readonly EditorNoteSnapshot[]) => void;
   select: (noteId: string | null) => void;
   startEditing: (noteId: string) => void;
@@ -83,6 +88,10 @@ export function EditorStateProvider({
   }, [controller]);
 
   const actions = useMemo<EditorActions>(() => ({
+    createNote: (note) => controller.createNote(note),
+    updateCreation: (noteId, changes) => controller.updateCreation(noteId, changes),
+    getCreation: (noteId) => controller.getCreations()[noteId],
+    commitCreation: (noteId, save, force) => controller.commitCreation(noteId, save, force),
     hydrate: (notes) => controller.hydrate(notes),
     select: (noteId) => controller.select(noteId),
     startEditing: (noteId) => controller.startEditing(noteId),
@@ -163,4 +172,9 @@ export function useNoteDraft(noteId: string): NoteDraft | null {
     () => controller.getDraft(noteId),
     () => controller.getDraft(noteId),
   );
+}
+
+export function useNoteCreations() {
+  const controller = useController();
+  return useSyncExternalStore(controller.subscribe, controller.getCreations, controller.getCreations);
 }

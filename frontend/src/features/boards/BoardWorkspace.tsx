@@ -26,6 +26,7 @@ import {
   noteApi,
   type BoardDetailDto,
   type ConnectionDto,
+  type ConnectionSide,
   type MemberDto,
   type NoteDto,
   type PatchNote,
@@ -49,9 +50,15 @@ import { identityLabel } from "../../components/ui/Avatar";
 import { CollaborationAnnouncements } from "./CollaborationAnnouncements";
 import {
   connectedNoteIds,
-  nearestConnectionPath,
+  connectionEndpoints, connectionHandleReach,
+  isConnectionSide,
+  nearestConnectionSide,
   notesAreConnected,
 } from "./connectionGeometry";
+import { contentBounds } from "./boardZoom";
+import { useBoardViewport } from "./hooks/useBoardViewport";
+import { ConnectionLayer, type ConnectionDraft } from "./components/ConnectionLayer";
+import { ZoomControls } from "./components/ZoomControls";
 import { clampDimension, noteDimensionBounds } from "./noteDimensions";
 import { RealtimeHealth } from "./RealtimeHealth";
 import {
@@ -60,6 +67,7 @@ import {
 } from "./boardViewport";
 import {
   EditorStateProvider,
+  useNoteCreations,
   useEditorActions,
   useEditorNavigation,
   useNoteDraft,
@@ -86,6 +94,7 @@ import {
 import {
   mergePresenceSnapshot,
   mergeVersionedNote,
+  mergeVersionedConnection,
   removeVersionedNote,
   shouldAcceptGeometryPreview,
   shouldClearGeometryPreview,
@@ -94,12 +103,6 @@ import {
 import { editingUserIds } from "../../realtime/editing";
 
 type Panel = "tasks" | "share" | "chat" | null;
-type ConnectionDraft = {
-  sourceId: string;
-  x: number;
-  y: number;
-  targetId: string | null;
-};
 type WorkspaceProps = {
   id: string;
   titleOverride?: string;
@@ -130,6 +133,8 @@ function WorkspaceContent({
   const editor = useEditorActions();
   const editorNavigation = useEditorNavigation();
   const selected = editorNavigation.selectedNoteId;
+  const creations = useNoteCreations();
+  const creationKeys = useRef(new Map<string, string>());
   const [board, setBoard] = useState<BoardDetailDto | null>(null),
     [notes, setNotes] = useState<NoteDto[]>([]),
     [edges, setEdges] = useState<ConnectionDto[]>([]),
@@ -154,6 +159,9 @@ function WorkspaceContent({
   useEffect(() => {
     void boardApi.members(id).then(setMembers).catch(() => undefined);
   }, [id, profileIdentityVersion]);
+  const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
+  const pendingConnections = useRef(new Set<string>());
+  const connectionTombstones = useRef(new Map<string, number>());
   const notesRef = useRef<NoteDto[]>([]);
   const permissionRef = useRef<boolean | null>(null);
   const noteTombstones = useRef(new Map<string, number>());
@@ -165,11 +173,28 @@ function WorkspaceContent({
   const remotePreviewEnds = useRef(new Map<string, number>());
   const remotePreviewTimers = useRef(new Map<string, ReturnType<typeof setTimeout>>());
   const canvasRef = useRef<HTMLDivElement>(null);
+  const top = [...notes.filter((note) => note.kind !== 2 && !creations[creationKeys.current.get(note.id) ?? ""]), ...Object.values(creations).map(({ note }) => note)],
+    visualTop = top.map((note) => {
+      const remote = remotePreviews[note.id];
+      const remoteGeometry: VisualPatch | undefined = remote?.operation === 0
+        ? { positionX: remote.x ?? note.positionX ?? 0, positionY: remote.y ?? note.positionY ?? 0 }
+        : remote?.operation === 1
+          ? { width: remote.width ?? note.width, height: remote.height ?? note.height }
+          : undefined;
+      const candidate = { ...note, ...remoteGeometry, ...visuals[note.id] };
+      const bounds = noteDimensionBounds(candidate, notes.filter((item) => item.parentNoteId === note.id), candidate.width);
+      return {
+        ...candidate,
+        width: clampDimension(candidate.width, bounds.minWidth, bounds.maxWidth),
+        height: clampDimension(candidate.height, bounds.minHeight, bounds.maxHeight),
+      };
+    });
+  const viewport = useBoardViewport(canvasRef, contentBounds(visualTop), !loading && !failure);
   const { remoteEditing, clearAllRemoteEditing, clearRemoteEditingForNote,
     acceptRemoteEditing, endRemoteEditing, stopLocalEditingNow,
     editingChanged, finishEditing, reannounceLocalEditing } = useBoardEditing(id);
   const { cursorStore, clearAllRemoteCursors, acceptRemoteCursor, endRemoteCursor,
-    stopLocalCursor, moveLocalCursor } = useBoardCursors(id, currentUserId, canvasRef);
+    stopLocalCursor, moveLocalCursor } = useBoardCursors(id, currentUserId, canvasRef, viewport.controller.getCamera);
   const publishNotes = useCallback((update: (current: NoteDto[]) => NoteDto[]) => {
     const next = update(notesRef.current);
     notesRef.current = next;
@@ -235,9 +260,7 @@ function WorkspaceContent({
     ));
   }, [clearRemotePreview, editor, publishNotes]);
   const mergeConnection = useCallback((incoming: ConnectionDto) => {
-    setEdges((current) => current.some((edge) => edge.id === incoming.id)
-      ? current
-      : [...current, incoming]);
+    setEdges((current) => mergeVersionedConnection(current, incoming, connectionTombstones.current.get(incoming.id)));
   }, []);
   const preview = useCallback((noteId: string, patch: VisualPatch) => {
     setVisuals((current) => ({
@@ -251,6 +274,7 @@ function WorkspaceContent({
     operation: NoteGeometryOperation,
     patch: VisualPatch,
   ) => {
+    if (editor.getCreation(noteId)) return 0;
     const sequence = ++geometrySequence.current;
     void realtimeConnection.sendNoteGeometryPreview({
       boardId: id,
@@ -264,9 +288,9 @@ function WorkspaceContent({
       sequence,
     });
     return sequence;
-  }, [id]);
+  }, [id, editor]);
   const endGeometry = useCallback((noteId: string, sequence: number) => {
-    void realtimeConnection.endNoteGeometryPreview(id, noteId, sequence);
+    if (sequence > 0) void realtimeConnection.endNoteGeometryPreview(id, noteId, sequence);
   }, [id]);
   const cancelPreview = useCallback((noteId: string, patch: VisualPatch) => {
     setVisuals((current) => {
@@ -281,15 +305,25 @@ function WorkspaceContent({
       return all;
     });
   }, []);
-  const patchNote = useCallback((noteId: string, changes: PatchNote) =>
-    enqueueNote(noteId, async (current) => {
+  const patchNote = useCallback((noteId: string, changes: PatchNote) => {
+    const creation = editor.getCreation(noteId);
+    if (creation) {
+      editor.updateCreation(noteId, changes);
+      return Promise.resolve({ ...creation.note, ...changes });
+    }
+    return enqueueNote(noteId, async (current) => {
       const updated = await noteApi.patch(id, noteId, current.version, changes);
       publishNotes((all) => all.map((note) => note.id === noteId ? updated : note));
       editor.reconcileSaved(updated);
       return updated;
-    }), [editor, enqueueNote, id, publishNotes]);
-  const deleteNote = useCallback((noteId: string) =>
-    enqueueNote(noteId, async (current) => {
+    });
+  }, [editor, enqueueNote, id, publishNotes]);
+  const deleteNote = useCallback((noteId: string) => {
+    if (editor.getCreation(noteId)) {
+      editor.removeNote(noteId);
+      return Promise.resolve();
+    }
+    return enqueueNote(noteId, async (current) => {
       await noteApi.remove(id, noteId, current.version);
       publishNotes((all) => all.filter((note) => note.id !== noteId));
       setEdges((all) => all.filter((edge) =>
@@ -300,7 +334,8 @@ function WorkspaceContent({
         return next;
       });
       editor.removeNote(noteId);
-    }), [editor, enqueueNote, id, publishNotes]);
+    });
+  }, [editor, enqueueNote, id, publishNotes]);
   const failed = useCallback((noteId: string, cause: unknown) => {
     if (isNoteConflict(cause)) {
       editor.markConflict(noteId);
@@ -418,11 +453,18 @@ function WorkspaceContent({
           if (message.boardId === id) mergeConnection(message);
         },
       ),
+      realtimeConnection.on<ConnectionCreatedEvent>(realtimeEvents.connectionUpdated, (message) => {
+        if (message.boardId === id) mergeConnection(message);
+      }),
       realtimeConnection.on<ConnectionDeletedEvent>(
         realtimeEvents.connectionDeleted,
         (message) => {
-          if (message.boardId === id)
-            setEdges((current) => current.filter((edge) => edge.id !== message.connectionId));
+          if (message.boardId === id) {
+            const version = message.version ?? Number.MAX_SAFE_INTEGER;
+            connectionTombstones.current.set(message.connectionId, Math.max(version, connectionTombstones.current.get(message.connectionId) ?? -1));
+            setEdges((current) => current.filter((edge) => edge.id !== message.connectionId || (edge.version ?? 0) > version));
+            setSelectedEdgeId((current) => current === message.connectionId ? null : current);
+          }
         },
       ),
       realtimeConnection.on<BoardUpdatedEvent>(realtimeEvents.boardUpdated, (message) => {
@@ -535,39 +577,72 @@ function WorkspaceContent({
     }
     colorTimers.current.clear();
   }, [commitVisual, stopLocalCursor, stopLocalEditingNow]);
-  async function create(kind: 0 | 1) {
-    try {
-      setConnecting(false);
-      draftRef.current = null;
-      setConnectionDraft(null);
-      const count = notes.filter((note) => note.kind !== 2).length;
-      const value = await noteApi.create(id, {
-        kind,
-        title: kind === 1 ? "New task list" : "New note",
-        content: "",
-        positionX: 120 + (count % 2) * 300,
-        positionY: 120 + Math.floor(count / 2) * 210,
-        color: kind === 1 ? "#EEE2BF" : "#EEE8DB",
+  async function finishCreation(noteId: string, force = false) {
+    const saved = await editor.commitCreation(noteId, async (note) => {
+      const result = await noteApi.create(id, {
+        kind: note.kind, title: note.title, content: note.content,
+        positionX: note.positionX ?? 0, positionY: note.positionY ?? 0,
+        width: note.width, height: note.height, color: note.color, zIndex: note.zIndex,
       });
-      mergeAuthoritativeNote(value);
-      editor.select(value.id);
-      setEditTitleId(value.id);
-      notify(kind === 1 ? "Task list created" : "Note created");
-    } catch (cause) {
-      notify(errorMessage(cause));
+      // Stable render identity preserves inline task-item state during the local-to-server handoff.
+      creationKeys.current.set(result.id, noteId);
+      mergeAuthoritativeNote(result);
+      return result;
+    }, force);
+    if (saved) mergeAuthoritativeNote(saved);
+    if (!editor.getCreation(noteId)) {
+      setEditTitleId((current) => current === noteId ? null : current);
+      setVisuals((all) => { const next = { ...all }; delete next[noteId]; return next; });
     }
+    return saved;
+  }
+  function create(kind: 0 | 1) {
+    setConnecting(false);
+    draftRef.current = null;
+    setConnectionDraft(null);
+    const canvas = canvasRef.current;
+    const scale = viewport.controller.getScale();
+    // Creation is local until meaningful text is committed; no placeholder POST.
+    const noteId = `local:${crypto.randomUUID()}`;
+    const center = canvas ? clientPointToBoard(canvas.getBoundingClientRect(),
+      viewport.controller.getCamera(),
+      { x: canvas.getBoundingClientRect().left + canvas.clientWidth / 2,
+        y: canvas.getBoundingClientRect().top + canvas.clientHeight / 2 }) : { x: 240, y: 200 };
+    const width = kind === 1 ? 300 : 280;
+    const height = kind === 1 ? 144 : 220;
+    const base = { x: Math.round(center.x - width / 2), y: Math.round(center.y - height / 2) };
+    const candidates = [[0, 0], [1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [-1, 1]]
+      .map(([x, y]) => ({ x: base.x + x * (width + 24), y: base.y + y * (height + 24) }));
+    const position = candidates.find((point) =>
+      Math.abs(point.x + width / 2 - center.x) <= (canvas?.clientWidth ?? 800) / scale / 2 - width / 2 &&
+      Math.abs(point.y + height / 2 - center.y) <= (canvas?.clientHeight ?? 600) / scale / 2 - height / 2 &&
+      visualTop.every((note) => point.x + width + 16 <= (note.positionX ?? 0) ||
+        point.x >= (note.positionX ?? 0) + note.width + 16 ||
+        point.y + height + 16 <= (note.positionY ?? 0) || point.y >= (note.positionY ?? 0) + note.height + 16))
+      ?? { x: base.x + top.length % 6 * 24, y: base.y + top.length % 6 * 24 };
+    editor.createNote({
+      id: noteId, boardId: id, kind, parentNoteId: null, title: "", content: "",
+      positionX: position.x, positionY: position.y,
+      width, height, zIndex: top.reduce((highest, note) => Math.max(highest, note.zIndex), 0) + 1,
+      color: kind === 1 ? "#EEE2BF" : "#EEE8DB", isCompleted: false,
+      createdAt: new Date().toISOString(), version: 0,
+    });
+    setEditTitleId(noteId);
   }
   async function addItem(parentId: string, title: string) {
     try {
+      const creation = editor.getCreation(parentId);
+      const parent = creation ? await finishCreation(parentId, true) : null;
       const value = await noteApi.create(id, {
         kind: 2,
         title: title.trim(),
-        parentNoteId: parentId,
+        parentNoteId: parent?.id ?? parentId,
       });
       mergeAuthoritativeNote(value);
       notify("Checklist item added");
     } catch (cause) {
       notify(errorMessage(cause));
+      throw cause;
     }
   }
   async function toggle(item: NoteDto) {
@@ -584,18 +659,22 @@ function WorkspaceContent({
   }
   async function editTitle(noteId: string, title: string) {
     try {
-      await patchNote(noteId, { title });
+      if (editor.getCreation(noteId)) await finishCreation(noteId);
+      else await patchNote(noteId, { title });
       setEditTitleId(null);
     } catch (cause) {
       failed(noteId, cause);
+      throw cause;
     }
   }
   async function editContent(noteId: string, content: string) {
     try {
-      await patchNote(noteId, { content });
+      if (editor.getCreation(noteId)) await finishCreation(noteId);
+      else await patchNote(noteId, { content });
       notify("Note body updated");
     } catch (cause) {
       failed(noteId, cause);
+      throw cause;
     }
   }
   async function editItem(item: NoteDto, title: string) {
@@ -604,6 +683,7 @@ function WorkspaceContent({
       notify("Checklist item updated");
     } catch (cause) {
       failed(item.id, cause);
+      throw cause;
     }
   }
   async function removeItem(item: NoteDto) {
@@ -614,84 +694,126 @@ function WorkspaceContent({
       failed(item.id, cause);
     }
   }
-  function targetAt(clientX: number, clientY: number, sourceId: string): string | null {
-    const element = document.elementFromPoint(clientX, clientY) as HTMLElement | null;
-    const targetId = element?.closest<HTMLElement>("[data-note-id]")?.dataset.noteId ?? null;
-    return targetId !== sourceId ? targetId : null;
+  function targetAt(clientX: number, clientY: number, fixedId: string) {
+    const point = viewport.controller.clientToWorld({ x: clientX, y: clientY });
+    const eligible = (note: NoteDto) => note.id !== fixedId && !editor.getCreation(note.id);
+    const candidates = document.elementsFromPoint(clientX, clientY).flatMap((element) => {
+      const targetId = element.closest<HTMLElement>("[data-note-id]")?.dataset.noteId;
+      const note = visualTop.find((candidate) => candidate.id === targetId);
+      if (!note || !eligible(note)) return [];
+      const side = element.closest<HTMLElement>("[data-connection-side]")?.dataset.connectionSide;
+      return [{ note, side: isConnectionSide(side) ? side : nearestConnectionSide(note, point) }];
+    });
+    const distance = (note: NoteDto) => Math.hypot(
+      Math.max((note.positionX ?? 0) - point.x, 0, point.x - (note.positionX ?? 0) - note.width),
+      Math.max((note.positionY ?? 0) - point.y, 0, point.y - (note.positionY ?? 0) - note.height));
+    // Card content wins over the outward hit area of a nearby card's handle.
+    const body = candidates.find(({ note }) => distance(note) === 0);
+    if (body) return { id: body.note.id, side: body.side };
+    // Edge drops can land just outside the DOM box, including while handles are hidden.
+    const nearby = visualTop.filter(eligible).reduce<NoteDto | null>((nearest, note) =>
+      distance(note) <= 5 / viewport.controller.getScale() && (!nearest || distance(note) < distance(nearest)) ? note : nearest, null);
+    if (nearby) return { id: nearby.id, side: nearestConnectionSide(nearby, point) };
+    const handle = candidates[0];
+    return handle ? { id: handle.note.id, side: handle.side } : null;
   }
-  function connectStart(sourceId: string, event: Pointer<HTMLButtonElement>) {
-    const canvas = canvasRef.current;
-    const rect = canvas?.getBoundingClientRect();
-    if (!canvas || !rect) return;
+  function connectStart(sourceId: string, side: ConnectionSide, event: Pointer<HTMLButtonElement>) {
+    if (!canvasRef.current || !board?.canEdit || editor.getCreation(sourceId)) return;
     event.preventDefault();
-    const point = clientPointToBoard(
-      rect,
-      { left: canvas.scrollLeft, top: canvas.scrollTop },
-      { x: event.clientX, y: event.clientY },
-    );
-    const value = {
-      sourceId,
-      ...point,
-      targetId: null,
-    };
-    draftRef.current = value;
-    setConnectionDraft(value);
-    setConnecting(true);
+    const point = viewport.controller.clientToWorld({ x: event.clientX, y: event.clientY });
+    const value: ConnectionDraft = { fixedNoteId: sourceId, fixedSide: side, endpoint: "target", ...point, targetId: null, targetSide: null };
+    draftRef.current = value; setConnectionDraft(value); setConnecting(true);
+    setSelectedEdgeId(null); editor.select(sourceId);
+  }
+  function reconnectStart(edge: ConnectionDto, endpoint: "source" | "target", event: Pointer<HTMLButtonElement>) {
+    if (!board?.canEdit || pendingConnections.current.has(edge.id)) return;
+    const source = visualTop.find((note) => note.id === edge.sourceNoteId), target = visualTop.find((note) => note.id === edge.targetNoteId);
+    if (!source || !target) return;
+    event.preventDefault();
+    const anchors = connectionEndpoints(source, target, edge.sourceHandle, edge.targetHandle);
+    const fixed = endpoint === "target" ? anchors.start : anchors.end;
+    const point = viewport.controller.clientToWorld({ x: event.clientX, y: event.clientY });
+    const value: ConnectionDraft = { fixedNoteId: endpoint === "target" ? source.id : target.id,
+      fixedSide: fixed.side!, endpoint, connectionId: edge.id, version: edge.version,
+      ...point, targetId: null, targetSide: null };
+    draftRef.current = value; setConnectionDraft(value); setConnecting(true);
   }
   function connectMove(event: Pointer<HTMLButtonElement>) {
     const current = draftRef.current;
-    const canvas = canvasRef.current;
-    const rect = canvas?.getBoundingClientRect();
-    if (!current || !canvas || !rect) return;
+    if (!current) return;
     if (!(event.buttons & 1)) return connectEnd(event);
-    const point = clientPointToBoard(
-      rect,
-      { left: canvas.scrollLeft, top: canvas.scrollTop },
-      { x: event.clientX, y: event.clientY },
-    );
-    const value = {
-      ...current,
-      ...point,
-      targetId: targetAt(event.clientX, event.clientY, current.sourceId),
-    };
-    draftRef.current = value;
-    setConnectionDraft(value);
+    const point = viewport.controller.clientToWorld({ x: event.clientX, y: event.clientY });
+    const target = targetAt(event.clientX, event.clientY, current.fixedNoteId);
+    const value = { ...current, ...point, targetId: target?.id ?? null, targetSide: target?.side ?? null };
+    draftRef.current = value; setConnectionDraft(value);
   }
-  function connectCancel() {
-    draftRef.current = null;
-    setConnectionDraft(null);
-    setConnecting(false);
-  }
-  async function createConnection(sourceId: string, targetId: string) {
-    if (sourceId === targetId || notesAreConnected(sourceId, targetId, edges)) {
-      notify("These notes are already connected.");
-      return;
-    }
+  const connectCancel = useCallback(() => {
+    draftRef.current = null; setConnectionDraft(null); setConnecting(false);
+  }, []);
+  useEffect(() => {
+    if (!board?.canEdit) connectCancel();
+  }, [board?.canEdit, connectCancel]);
+  const hasConnectionDraft = connectionDraft !== null;
+  useEffect(() => {
+    if (!hasConnectionDraft) return;
+    const escape = (event: KeyboardEvent) => { if (event.key === "Escape") connectCancel(); };
+    window.addEventListener("keydown", escape); window.addEventListener("blur", connectCancel);
+    return () => { window.removeEventListener("keydown", escape); window.removeEventListener("blur", connectCancel); };
+  }, [hasConnectionDraft, connectCancel]);
+  async function createConnection(sourceId: string, targetId: string, sourceSide?: ConnectionSide, targetSide?: ConnectionSide) {
+    if (!board?.canEdit) return;
+    if (editor.getCreation(sourceId) || editor.getCreation(targetId)) { notify("Save both cards before connecting them."); return; }
+    if (sourceId === targetId || notesAreConnected(sourceId, targetId, edges)) { notify("These cards are already connected."); return; }
+    const source = visualTop.find((note) => note.id === sourceId), target = visualTop.find((note) => note.id === targetId);
+    if (!source || !target) return;
+    const anchors = connectionEndpoints(source, target, sourceSide, targetSide);
+    const key = [sourceId, targetId].sort().join(":");
+    if (pendingConnections.current.has(key)) return;
+    pendingConnections.current.add(key);
     try {
-      const edge = await connectionApi.create(id, sourceId, targetId, type);
-      mergeConnection(edge);
-      setConnectionTargetId("");
-      notify("Connection created");
-    } catch (cause) {
-      notify(errorMessage(cause));
-    }
+      const edge = await connectionApi.create(id, sourceId, targetId, type, anchors.start.side!, anchors.end.side!);
+      mergeConnection(edge); setConnectionTargetId(""); notify("Connection created");
+    } catch (cause) { notify(errorMessage(cause)); }
+    finally { pendingConnections.current.delete(key); }
   }
   async function connectEnd(event: Pointer<HTMLButtonElement>) {
     const current = draftRef.current;
+    const target = current && targetAt(event.clientX, event.clientY, current.fixedNoteId);
     connectCancel();
-    if (!current) return;
-    const targetId = targetAt(event.clientX, event.clientY, current.sourceId);
-    if (!targetId) return;
-    await createConnection(current.sourceId, targetId);
+    if (!board?.canEdit || !current || !target) return;
+    if (!current.connectionId) { await createConnection(current.fixedNoteId, target.id, current.fixedSide, target.side); return; }
+    const sourceNoteId = current.endpoint === "source" ? target.id : current.fixedNoteId;
+    const targetNoteId = current.endpoint === "target" ? target.id : current.fixedNoteId;
+    if (sourceNoteId === targetNoteId || notesAreConnected(sourceNoteId, targetNoteId, edges, current.connectionId)) { notify("These cards are already connected."); return; }
+    if (pendingConnections.current.has(current.connectionId)) return;
+    pendingConnections.current.add(current.connectionId);
+    try {
+      const updated = await connectionApi.reconnect(id, current.connectionId, current.version ?? 0, {
+        sourceNoteId, targetNoteId,
+        sourceHandle: current.endpoint === "source" ? target.side : current.fixedSide,
+        targetHandle: current.endpoint === "target" ? target.side : current.fixedSide,
+      });
+      mergeConnection(updated); notify("Connection updated");
+    } catch (cause) {
+      if (cause instanceof AuthApiError && cause.code === "connection_version_conflict") {
+        try {
+          const latest = (await connectionApi.list(id)).find((edge) => edge.id === current.connectionId);
+          // Preserve a newer event received while the HTTP reload was in flight.
+          if (latest) mergeConnection(latest);
+          else setEdges((edges) => edges.filter((edge) => edge.id !== current.connectionId));
+        } catch { notify("Could not reload the connection. Try refreshing the board."); }
+      }
+      notify(errorMessage(cause));
+    } finally { pendingConnections.current.delete(current.connectionId); }
   }
   async function removeEdge(edgeId: string) {
     try {
       await connectionApi.remove(id, edgeId);
+      connectionTombstones.current.set(edgeId, Number.MAX_SAFE_INTEGER);
       setEdges((previous) => previous.filter((edge) => edge.id !== edgeId));
+      setSelectedEdgeId((current) => current === edgeId ? null : current);
       notify("Connection removed");
-    } catch (cause) {
-      notify(errorMessage(cause));
-    }
+    } catch (cause) { notify(errorMessage(cause)); }
   }
   async function setGuest(email: string, edit: boolean) {
     await boardApi.setGuest(id, email, edit);
@@ -743,23 +865,7 @@ function WorkspaceContent({
         identity: member,
       };
     });
-  const top = notes.filter((note) => note.kind !== 2),
-    visualTop = top.map((note) => {
-      const remote = remotePreviews[note.id];
-      const remoteGeometry: VisualPatch | undefined = remote?.operation === 0
-        ? { positionX: remote.x ?? note.positionX ?? 0, positionY: remote.y ?? note.positionY ?? 0 }
-        : remote?.operation === 1
-          ? { width: remote.width ?? note.width, height: remote.height ?? note.height }
-          : undefined;
-      const candidate = { ...note, ...remoteGeometry, ...visuals[note.id] };
-      const bounds = noteDimensionBounds(candidate, notes.filter((item) => item.parentNoteId === note.id), candidate.width);
-      return {
-        ...candidate,
-        width: clampDimension(candidate.width, bounds.minWidth, bounds.maxWidth),
-        height: clampDimension(candidate.height, bounds.minHeight, bounds.maxHeight),
-      };
-    }),
-    inspectorNote = top.find((note) => note.id === editorNavigation.inspectorNoteId),
+  const inspectorNote = top.find((note) => note.id === editorNavigation.inspectorNoteId),
     editable = board?.canEdit ?? false;
   const inspectorConnections = useMemo(
     () => inspectorNote ? connectedNoteIds(inspectorNote.id, edges) : new Set<string>(),
@@ -785,7 +891,7 @@ function WorkspaceContent({
       frame = requestAnimationFrame(() => {
         const node = Array.from(canvas.querySelectorAll<HTMLElement>("[data-note-id]"))
           .find((candidate) => candidate.dataset.noteId === noteId);
-        if (node) revealBoardNode(canvas, node);
+        if (node) revealBoardNode(canvas, node, viewport.controller.panBy);
       });
     };
     reveal();
@@ -795,7 +901,7 @@ function WorkspaceContent({
       cancelAnimationFrame(frame);
       observer?.disconnect();
     };
-  }, [editorNavigation.inspectorNoteId]);
+  }, [viewport.controller, editorNavigation.inspectorNoteId]);
   return (
     <div className="workspace">
       <CollaborationAnnouncements
@@ -863,6 +969,7 @@ function WorkspaceContent({
         </div>
       ) : (
         <main className="board-main">
+          <ZoomControls controller={viewport.controller} />
           <div className="canvas-tools">
             {editable && (
               <>
@@ -907,14 +1014,22 @@ function WorkspaceContent({
           <div
             className="canvas"
             ref={canvasRef}
-            tabIndex={-1}
+            tabIndex={0}
+            aria-label="Board canvas. Ctrl or Command plus wheel to zoom. Drag empty space, scroll, use arrow keys, or Space and drag to pan."
+            onPointerDown={(event) => {
+              if (!(event.target as HTMLElement).closest("[data-note-id]")) {
+                setSelectedEdgeId(null);
+                editor.select(null);
+                event.currentTarget.focus({ preventScroll: true });
+              }
+            }}
             onPointerMove={moveLocalCursor}
             onPointerLeave={stopLocalCursor}
           >
-            <RemoteCursors store={cursorStore} members={members} />
+
             {connecting && (
               <div className="canvas-label">
-                Drag from a note’s right handle to another note{" "}
+                Drag from any card edge to another card{" "}
                 <select
                   value={type}
                   onChange={(e) => setType(Number(e.target.value) as 0 | 1)}
@@ -924,47 +1039,28 @@ function WorkspaceContent({
                 </select>
               </div>
             )}
-            <svg className="connections">
-              <defs>
-                <marker id="connection-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
-                  <path d="M 0 0 L 10 5 L 0 10 z" />
-                </marker>
-              </defs>
-              {edges.map((edge) => {
-                const a = visualTop.find((n) => n.id === edge.sourceNoteId),
-                  b = visualTop.find((n) => n.id === edge.targetNoteId);
-                return a && b ? (
-                  <path
-                    key={edge.id}
-                    d={nearestConnectionPath(a, b)}
-                    className={edge.type === 1 ? "prerequisite-edge" : "related-edge"}
-                    markerEnd="url(#connection-arrow)"
-                  />
-                ) : null;
-              })}
-              {connectionDraft && (() => {
-                const sourceNote = visualTop.find((note) => note.id === connectionDraft.sourceId);
-                if (!sourceNote) return null;
-                const startX = (sourceNote.positionX ?? 0) + sourceNote.width;
-                const startY = (sourceNote.positionY ?? 0) + sourceNote.height / 2;
-                const bend = Math.max(45, Math.abs(connectionDraft.x - startX) / 2);
-                return <path className="draft-edge" d={`M ${startX} ${startY} C ${startX + bend} ${startY}, ${connectionDraft.x - bend} ${connectionDraft.y}, ${connectionDraft.x} ${connectionDraft.y}`} markerEnd="url(#connection-arrow)" />;
-              })()}
-            </svg>
+            <div className="board-world" ref={viewport.worldRef}>
+            <RemoteCursors store={cursorStore} members={members} />
+            <ConnectionLayer notes={visualTop} edges={edges} selectedId={selectedEdgeId} editable={editable}
+              draft={connectionDraft} select={(edgeId) => { setSelectedEdgeId(edgeId); editor.select(null); }}
+              start={reconnectStart} move={connectMove} end={connectEnd} cancel={connectCancel} />
             {visualTop.map((note) => {
               const remote = remotePreviews[note.id];
               const remoteMember = remote ? memberById.get(remote.userId) : undefined;
               const remoteLabel = remoteMember ? identityLabel(remoteMember) : "Someone";
               return (
                 <NoteCard
-                  key={note.id}
+                  key={creationKeys.current.get(note.id) ?? note.id}
                   note={note}
+                  creation={creations[note.id]}
+                  finishCreation={() => void finishCreation(note.id).catch((cause) => notify(errorMessage(cause)))}
+                  viewport={viewport.controller}
                   items={notes.filter((item) => item.parentNoteId === note.id)}
                   selected={selected === note.id}
-                  editable={editable}
-                  select={() => editor.select(note.id)}
+                  editable={editable && creations[note.id]?.status !== "saving"}
+                  select={() => { setSelectedEdgeId(null); editor.select(note.id); }}
                   toggle={toggle}
-                  addItem={(title) => void addItem(note.id, title)}
+                  addItem={(title) => addItem(note.id, title)}
                   editTitle={(title) => editTitle(note.id, title)}
                   editContent={(content) => editContent(note.id, content)}
                   editItem={(item, title) => editItem(item, title)}
@@ -983,8 +1079,9 @@ function WorkspaceContent({
                   connectMove={connectMove}
                   connectEnd={(event) => void connectEnd(event)}
                   connectCancel={connectCancel}
-                  connecting={connecting}
                   targetHighlighted={connectionDraft?.targetId === note.id}
+                  targetSide={connectionDraft?.targetId === note.id ? connectionDraft.targetSide : null}
+                  connectionReach={connectionHandleReach(note, visualTop)}
                   remoteGeometry={remote ? {
                     userId: remote.userId,
                     label: remoteLabel,
@@ -994,10 +1091,11 @@ function WorkspaceContent({
                     username: remoteMember?.username,
                   } : undefined}
                   editors={editorsForNote(note.id)}
-                  editingChanged={editingChanged}
+                  editingChanged={(noteId, active) => { if (!editor.getCreation(noteId)) editingChanged(noteId, active); }}
                 />
               );
             })}
+            </div>
             {!top.length && (
               <div className="canvas-empty" role="status">
                 <h2>{editable ? "Start with a note" : "No notes yet"}</h2>

@@ -1,3 +1,4 @@
+import type { NoteDto, PatchNote } from "../../../api";
 import {
   clearEditorBoardState,
   closeEditorInspector,
@@ -13,6 +14,7 @@ import {
   startEditorEditing,
   stopEditorEditing,
   updateNoteDraft,
+  type CreationDraft,
   type EditorNavigationState,
   type EditorNoteSnapshot,
   type EditorPresentation,
@@ -32,6 +34,7 @@ export class EditorStateController {
   private readonly boardId: string;
   private readonly store: EditorDraftStore;
   private hydrated = false;
+  private creationRequests = new Map<string, Promise<NoteDto | null>>();
 
   constructor(
     userId: string,
@@ -44,6 +47,7 @@ export class EditorStateController {
     this.store = store;
     this.state = createEditorState(presentation);
     this.storedDrafts = store.load(userId, boardId);
+    this.state.creations = store.loadCreations(userId, boardId);
   }
 
   subscribe = (listener: Listener) => {
@@ -53,12 +57,16 @@ export class EditorStateController {
 
   getNavigation = (): EditorNavigationState => this.state.navigation;
   getDraft = (noteId: string): NoteDraft | null => this.state.drafts[noteId] ?? null;
+  getCreations = (): Record<string, CreationDraft> => this.state.creations;
   getDrafts = (): Record<string, NoteDraft> => this.state.drafts;
 
   private replace(next: EditorState, persist = true) {
     if (next === this.state) return;
     this.state = next;
-    if (persist) this.store.save(this.userId, this.boardId, next.drafts);
+    if (persist) {
+      this.store.save(this.userId, this.boardId, next.drafts);
+      this.store.saveCreations(this.userId, this.boardId, next.creations);
+    }
     for (const listener of this.listeners) listener();
   }
 
@@ -106,7 +114,59 @@ export class EditorStateController {
     changes: Partial<Pick<NoteDraft, "title" | "content">>,
     updatedAt = Date.now(),
   ) {
+    if (this.state.creations[note.id]) {
+      this.updateCreation(note.id, changes);
+      return;
+    }
     this.replace(updateNoteDraft(this.state, note, changes, updatedAt));
+  }
+
+  createNote(note: NoteDto) {
+    this.replace({
+      ...startEditorEditing(this.state, note.id),
+      creations: { ...this.state.creations, [note.id]: { note, status: "draft" } },
+    });
+  }
+
+  updateCreation(noteId: string, changes: PatchNote) {
+    const current = this.state.creations[noteId];
+    if (!current || current.status === "saving") return;
+    this.replace({ ...this.state, creations: {
+      ...this.state.creations, [noteId]: { note: { ...current.note, ...changes }, status: "draft" },
+    } });
+  }
+
+  commitCreation(noteId: string, save: (note: NoteDto) => Promise<NoteDto>, force = false): Promise<NoteDto | null> {
+    const pending = this.creationRequests.get(noteId);
+    if (pending) return pending;
+    const creation = this.state.creations[noteId];
+    if (!creation) return Promise.resolve(null);
+    const note = creation.note;
+    if (!force && !note.title.trim() && !note.content.trim()) {
+      this.removeNote(noteId);
+      return Promise.resolve(null);
+    }
+    // Only one POST may own a draft, even when blur and Enter both finish editing.
+    const request = Promise.resolve().then(() => save({ ...note, title: note.title.trim() || "Untitled" }))
+      .then((saved) => {
+        if (this.state.creations[noteId]) {
+          const wasSelected = this.state.navigation.selectedNoteId === noteId;
+          const next = removeNoteEditorState(this.state, noteId);
+          this.replace(wasSelected ? selectEditorNote(next, saved.id) : next);
+        }
+        return saved;
+      }, (error) => {
+        if (this.state.creations[noteId]) this.replace({ ...this.state, creations: {
+          ...this.state.creations, [noteId]: { note, status: "failed" },
+        } });
+        throw error;
+      }).finally(() => this.creationRequests.delete(noteId));
+    this.creationRequests.set(noteId, request);
+    // Register before notifying subscribers so reentrant finish events share this request.
+    this.replace({ ...this.state, creations: {
+      ...this.state.creations, [noteId]: { note, status: "saving" },
+    } });
+    return request;
   }
 
   reconcileAuthoritative(note: EditorNoteSnapshot) {

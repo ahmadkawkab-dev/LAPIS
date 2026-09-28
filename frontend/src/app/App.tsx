@@ -45,11 +45,13 @@ export default function App() {
     [session, setSession] = useState<AuthSession | null>(currentSession()),
     [starting, setStarting] = useState(true),
     [startupError, setStartupError] = useState(""),
-    [notice, setNotice] = useState(""),
+    [notice, setNotice] = useState<{ message: string; tone: "default" | "warning" } | null>(null),
     [boards, setBoards] = useState<BoardListItemDto[]>([]),
     [loading, setLoading] = useState(false),
     [failure, setFailure] = useState("");
   const started = useRef(false);
+  const notify = useCallback((message: string) => setNotice({ message, tone: "default" }), []);
+  const warn = useCallback((message: string) => setNotice({ message, tone: "warning" }), []);
   const navigate = useCallback((next: string) => {
     window.history.pushState(null, "", next);
     setPath(next);
@@ -84,15 +86,15 @@ export default function App() {
         }
         const restored = await restoreSession();
         setSession(restored);
-        if (restored && callbackError) setNotice(callbackError);
-        else if (restored && linked) setNotice("Google account linked");
+        if (restored && callbackError) notify(callbackError);
+        else if (restored && linked) notify("Google account linked");
       } catch (cause) {
         setStartupError(errorMessage(cause));
       } finally {
         setStarting(false);
       }
     })();
-  }, []);
+  }, [notify]);
   const loadBoards = useCallback(async (showLoading = true) => {
     if (showLoading) setLoading(true);
     setFailure("");
@@ -155,7 +157,7 @@ export default function App() {
       setBoards([]);
       navigate("/login");
     } catch (cause) {
-      setNotice(errorMessage(cause));
+      notify(errorMessage(cause));
     }
   }
   const boardId = boardFromPath(path);
@@ -172,13 +174,13 @@ export default function App() {
     setBoards((current) => current.map((item) => item.id === boardId
       ? { ...item, title: updated.title, updatedAt: updated.updatedAt }
       : item));
-    setNotice("Board renamed");
+    notify("Board renamed");
   }
   async function deleteBoard(deletedId: string) {
     await boardApi.remove(deletedId);
     setBoards((current) => current.filter((item) => item.id !== deletedId));
     if (boardId === deletedId) navigate("/boards");
-    setNotice("Board deleted");
+    notify("Board deleted");
   }
   useEffect(() => {
     if (!session) return;
@@ -254,7 +256,7 @@ export default function App() {
       onDeleteBoard={deleteBoard}
       signOut={() => void signOut(false)}
       signOutEverywhere={() => void signOut(true)}
-      notify={setNotice}
+      notify={notify}
     >
       {path === "/library" ? <SoonPage area="Library" /> : path === "/library/pictures" ? <SoonPage area="Pictures" /> : path === "/journal" ? <SoonPage area="Journal" /> : path === "/tasks" ? <SoonPage area="Tasks" /> : accountSection ? (
         <AccountPanel
@@ -263,7 +265,7 @@ export default function App() {
           navigate={navigate}
           signOut={() => void signOut(false)}
           signOutEverywhere={() => void signOut(true)}
-          notify={setNotice}
+          notify={notify}
           onProfileUpdated={onProfileUpdated}
         />
       ) : boardId ? (
@@ -275,7 +277,7 @@ export default function App() {
           profileIdentityVersion={`${session.user.username}:${session.user.displayName ?? ""}:${session.user.profileImageVersion ?? ""}`}
           back={leaveBoard}
           boardLoaded={boardLoaded}
-          notify={setNotice}
+          notify={notify}
         />
       ) : (
         <BoardLanding
@@ -287,16 +289,23 @@ export default function App() {
           navigate={navigate}
           onRenameBoard={renameBoard}
           onDeleteBoard={deleteBoard}
+          onBoardLimitReached={() => warn("Board limit reached. You can have a maximum of 5 boards.")}
           create={async (title) => {
-            const board = await boardApi.create(title);
-            setBoards(await boardApi.list());
-            setNotice("Board created");
-            navigate(`/boards/${board.id}`);
+            try {
+              const board = await boardApi.create(title);
+              setBoards(await boardApi.list());
+              notify("Board created");
+              navigate(`/boards/${board.id}`);
+            } catch (cause) {
+              if (cause instanceof AuthApiError && cause.code === "board_limit_reached")
+                void loadBoards(false).catch(() => undefined);
+              throw cause;
+            }
           }}
         />
       )}
       {notice && (
-        <Notice message={notice} onDismiss={() => setNotice("")} />
+        <Notice message={notice.message} tone={notice.tone} onDismiss={() => setNotice(null)} />
       )}
     </AppShell>
   );

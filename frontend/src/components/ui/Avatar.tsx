@@ -49,7 +49,9 @@ export function Avatar({
         if (event.key === "Escape") setShowTooltip(false);
       }}
     >
-      {image ? <img src={identity.profileImageUrl!} alt="" loading="lazy" onError={() => setFailedUrl(identity.profileImageUrl!)} /> : fallback}
+      <span className="wk-avatar-content">
+        {image ? <img src={identity.profileImageUrl!} alt="" loading="lazy" onError={() => setFailedUrl(identity.profileImageUrl!)} /> : fallback}
+      </span>
       {tooltip && showTooltip && <span className="wk-avatar-tooltip" id={id} role="tooltip" style={position}>{label}</span>}
     </span>
   );

@@ -96,9 +96,14 @@ public sealed class BoardCursorTests(PostgresFixture postgres)
         await Task.Delay(TimeSpan.FromMilliseconds(250), cancellationToken);
         Assert.False(moved.Reader.TryRead(out _));
 
+        await sender.InvokeAsync("MoveBoardCursor", new MoveBoardCursorRequest(board.Id, -500, -1200, 2), cancellationToken);
+        var negative = await ReadMoved();
+        Assert.Equal(-500, negative.X);
+        Assert.Equal(-1200, negative.Y);
+
         var invalid = await Assert.ThrowsAsync<HubException>(() => sender.InvokeAsync(
             "MoveBoardCursor",
-            new MoveBoardCursorRequest(board.Id, -1, 12, 2),
+            new MoveBoardCursorRequest(board.Id, -1, 12, 0),
             cancellationToken));
         Assert.Contains("Invalid", invalid.Message, StringComparison.Ordinal);
 

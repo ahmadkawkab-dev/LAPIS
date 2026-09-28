@@ -13,7 +13,7 @@ public sealed record BoardUpdatedEvent(
 
 public sealed record NoteDeletedEvent(Guid BoardId, Guid NoteId, uint Version);
 
-public sealed record ConnectionDeletedEvent(Guid BoardId, Guid ConnectionId);
+public sealed record ConnectionDeletedEvent(Guid BoardId, Guid ConnectionId, uint Version = 0);
 
 public sealed record MembersChangedEvent(Guid BoardId);
 public sealed record ProfileChangedEvent(Guid BoardId, Guid UserId);
@@ -121,6 +121,13 @@ public sealed class BoardRealtimeDispatcher(
             connection,
             connection.Id,
             version: null);
+        await PublishSummariesAsync(connection.BoardId);
+    }
+
+    public async Task ConnectionUpdatedAsync(NoteConnectionDto connection)
+    {
+        await PublishBoardAsync(connection.BoardId, BoardRealtimeEvents.ConnectionUpdated,
+            connection, connection.Id, connection.Version);
         await PublishSummariesAsync(connection.BoardId);
     }
 

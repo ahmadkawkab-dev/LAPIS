@@ -94,8 +94,8 @@ public sealed class EphemeralGeometryPreviewTests(PostgresFixture postgres)
             board.Id,
             note.Id,
             NoteGeometryOperation.Drag,
-            120,
-            140,
+            -500,
+            -1200,
             null,
             null,
             note.Version,
@@ -105,8 +105,8 @@ public sealed class EphemeralGeometryPreviewTests(PostgresFixture postgres)
         Assert.Equal(owner.Id, received.UserId);
         Assert.NotEmpty(received.ConnectionId);
         Assert.Equal(NoteGeometryOperation.Drag, received.Operation);
-        Assert.Equal(120, received.X);
-        Assert.Equal(140, received.Y);
+        Assert.Equal(-500, received.X);
+        Assert.Equal(-1200, received.Y);
         Assert.Equal(note.Version, received.BaseVersion);
         Assert.Equal(clock.GetUtcNow(), received.SentAt);
 

@@ -26,6 +26,9 @@ export function InlineNoteText({
   const editor = useEditorActions();
   const value = draft?.[field] ?? note[field];
   const skipSave = useRef(false);
+  const entryValue = useRef(value);
+  const finishing = useRef(false);
+  const [saveFailed, setSaveFailed] = useState(false);
   const editableRef = useRef(editable);
   editableRef.current = editable;
   const editingAnnounced = useRef(false);
@@ -42,17 +45,37 @@ export function InlineNoteText({
     editingChangeRef.current?.(active);
   }
   async function finish(nextValue: string) {
+    if (finishing.current) return;
+    finishing.current = true;
     announceEditing(false);
     editor.stopEditing(note.id);
     setEditing(false);
-    if (skipSave.current) {
-      skipSave.current = false;
-      return;
-    }
-    if (!editableRef.current) return;
-    const next = field === "title" ? nextValue.trim() : nextValue;
-    if (field === "title" && !next) return;
-    if (next !== note[field]) await onSave(next);
+    try {
+      if (skipSave.current) {
+        skipSave.current = false;
+        if (editor.getCreation(note.id)) {
+          // Exiting initial creation preserves useful work; only an empty card is canceled.
+          if (editableRef.current && nextValue.trim()) await onSave(nextValue);
+        } else editor.updateDraft(note, { [field]: entryValue.current });
+        return;
+      }
+      if (!editableRef.current) return;
+      const creation = editor.getCreation(note.id);
+      const next = field === "title" ? nextValue.trim() || (creation ? "" : "Untitled") : nextValue;
+      editor.updateDraft(note, { [field]: next });
+      // Empty local titles remain available while moving into body/item editing.
+      // Leaving the card resolves the whole creation, not just this field.
+      if (creation && !next.trim()) return;
+      if (creation || next !== note[field]) await onSave(next);
+      setSaveFailed(false);
+    } catch {
+      // The caller reports the failure. Keep the editor draft visible and reopenable.
+      setSaveFailed(true);
+    } finally { finishing.current = false; }
+  }
+  function beginEditing() {
+    entryValue.current = value;
+    setEditing(true);
   }
   if (editing && editable) {
     const change = (event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
@@ -75,6 +98,7 @@ export function InlineNoteText({
         onKeyDown={(event) => {
           if (event.key === "Escape") {
             event.preventDefault();
+            event.stopPropagation();
             skipSave.current = true;
             event.currentTarget.blur();
           } else if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) {
@@ -100,6 +124,8 @@ export function InlineNoteText({
             event.preventDefault();
             event.currentTarget.blur();
           } else if (event.key === "Escape") {
+            event.preventDefault();
+            event.stopPropagation();
             skipSave.current = true;
             event.currentTarget.blur();
           }
@@ -109,26 +135,28 @@ export function InlineNoteText({
   }
   return (
     <span
-      className={`${editable ? "editable-text" : ""} ${field === "content" ? "note-body-text" : ""}`.trim()}
+      aria-label={label}
+      data-save-failed={saveFailed || undefined}
+      className={`${editable ? "editable-text" : ""} ${field === "content" ? "note-body-text" : "note-title-text"} ${!value ? "is-placeholder" : ""}`.trim()}
       role={editable ? "button" : undefined}
       tabIndex={editable ? 0 : undefined}
       title={editable ? (activation === "double" ? "Double-click to edit" : "Click to edit") : undefined}
       onClick={editable && activation === "click" ? (event) => {
         event.stopPropagation();
-        setEditing(true);
+        beginEditing();
       } : undefined}
       onDoubleClick={editable && activation === "double" ? (event) => {
         event.stopPropagation();
-        setEditing(true);
+        beginEditing();
       } : undefined}
       onKeyDown={editable ? (event) => {
         if (event.key === "Enter" || event.key === " ") {
           event.preventDefault();
-          setEditing(true);
+          beginEditing();
         }
       } : undefined}
     >
-      {value || (field === "content" && editable ? "Add body text…" : value)}
+      {value || (field === "title" ? "Untitled" : editable ? "Add body text…" : "No body text") }
     </span>
   );
 }

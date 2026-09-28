@@ -12,6 +12,7 @@ public class NoteConnection
 {
     public Guid Id { get; set; } = Guid.NewGuid();
     public Guid BoardId { get; set; }
+    public uint Version { get; set; }
     public ConnectionType Type { get; set; } = ConnectionType.Related;
 
     public Guid SourceNoteId { get; set; }

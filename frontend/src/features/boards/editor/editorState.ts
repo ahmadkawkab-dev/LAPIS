@@ -1,3 +1,5 @@
+import type { NoteDto } from "../../../api";
+
 export type EditorPresentation = "desktop" | "tablet" | "mobile";
 
 export type EditorNoteSnapshot = {
@@ -33,7 +35,13 @@ export type EditorNavigationState = {
   focusReturnNoteId: string | null;
 };
 
+export type CreationDraft = {
+  note: NoteDto;
+  status: "draft" | "saving" | "failed";
+};
+
 export type EditorState = {
+  creations: Record<string, CreationDraft>;
   navigation: EditorNavigationState;
   drafts: Record<string, NoteDraft>;
 };
@@ -50,6 +58,7 @@ export function createEditorState(
       focusReturnNoteId: null,
     },
     drafts: {},
+    creations: {},
   };
 }
 
@@ -239,7 +248,10 @@ export function removeNoteEditorState(state: EditorState, noteId: string): Edito
   const drafts = { ...state.drafts };
   delete drafts[noteId];
   const navigation = state.navigation;
+  const creations = { ...state.creations };
+  delete creations[noteId];
   return {
+    creations,
     drafts,
     navigation: {
       ...navigation,
