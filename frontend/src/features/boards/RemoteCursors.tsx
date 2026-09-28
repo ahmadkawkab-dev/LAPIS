@@ -29,7 +29,7 @@ export function RemoteCursors({ store, members }: {
           className="remote-cursor"
           key={cursor.connectionId}
           style={{
-            transform: `translate3d(${cursor.x}px, ${cursor.y}px, 0)`,
+            left: cursor.x, top: cursor.y,
             ...collaboratorStyle(cursor.userId),
           }}
         >

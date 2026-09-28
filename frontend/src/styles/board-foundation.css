@@ -48,14 +48,14 @@
 .canvas {
   min-width: 0;
   min-height: 0;
-  overflow: auto;
+  overflow: clip;
+  touch-action: none;
   overscroll-behavior: contain;
-  scrollbar-gutter: stable;
   color: var(--foreground);
   background: var(--canvas);
 }
-.connections { z-index: var(--layer-connections); overflow: visible; }
-.connections > path {
+.connections { z-index: var(--layer-connections); width: 1px; height: 1px; overflow: visible; }
+.connections .connection-path {
   stroke: var(--graph-edge);
   stroke-width: 2;
   opacity: .8;
@@ -128,12 +128,14 @@
   border-radius: var(--radius-note);
   box-shadow: var(--shadow-card);
   cursor: default;
+  transform: none;
+  will-change: auto;
   transition: border-color var(--motion-fast), box-shadow var(--motion-fast);
 }
 .sticky-note:hover { transform: none; box-shadow: 0 4px 14px color-mix(in srgb, var(--note-foreground) 14%, transparent); }
 .sticky-note.selected {
   border-color: var(--primary);
-  box-shadow: 0 0 0 2px var(--canvas), 0 0 0 5px var(--focus);
+  box-shadow: 0 0 0 1px var(--focus), var(--shadow-card);
 }
 .sticky-note:focus-visible {
   outline-color: var(--focus);
@@ -177,121 +179,100 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.note-head { min-height: 2rem; gap: var(--space-1); }
-.note-head strong { color: var(--note-foreground); font-size: var(--text-control); font-weight: 600; line-height: 1.35; }
-.note-drag-grip {
-  width: 1.25rem;
-  height: 2rem;
-  display: grid;
-  place-items: center;
-  flex: none;
-  margin-inline-start: calc(var(--space-2) * -1);
-  color: inherit;
-  opacity: .52;
-  cursor: grab;
-}
+/* One card surface; idle text and its controlled editor share the same metrics. */
+.note-head { display: flex; align-items: center; gap: var(--space-2); min-height: 2rem; }
+.note-head strong { flex: 1; min-width: 0; color: inherit; font-size: 1rem; font-weight: 600; line-height: 1.5; }
+.note-drag-grip { display: grid; place-items: center; width: 1rem; height: 2rem; flex: none; color: inherit; cursor: grab; }
 .note-drag-grip:active { cursor: grabbing; }
-.note-type { color: inherit; opacity: .72; }
-.note-properties { margin-inline-start: auto; color: inherit; }
-.sticky-note p {
-  margin: var(--space-3) 0 0;
-  color: var(--note-foreground);
-  font-size: .875rem;
-  line-height: 1.5;
+.note-type { display: grid; place-items: center; width: 1rem; height: 2rem; flex: none; color: inherit; opacity: .65; }
+.sticky-note .note-properties { width: 2rem; min-width: 2rem; height: 2rem; min-height: 2rem; padding: 0; flex: none; margin: 0; color: inherit; }
+.note-title-text { display: block; min-height: 1.5rem; line-height: 1.5rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.note-title-text.is-placeholder, .note-body-text.is-placeholder { opacity: .6; }
+.sticky-note .editable-text { border-radius: 2px; }
+.sticky-note .editable-text:hover { background: color-mix(in srgb, var(--note-foreground) 4%, transparent); text-decoration: none; }
+.sticky-note .inline-edit {
+  width: 100%; min-height: 0; margin: 0; padding: 0; border: 0; border-radius: 2px;
+  color: inherit; background: transparent; font: inherit; letter-spacing: inherit; box-shadow: none;
 }
-.editable-text { border-radius: .25rem; }
-.note-body { min-height: 0; flex: 1; margin-block-start: var(--space-3); overflow: auto; }
-.note-body-text { min-height: 100%; display: block; padding: var(--space-1); color: var(--note-foreground); font-size: .9375rem; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; }
-.note-body-text:empty::before { content: 'Add body text…'; color: var(--note-foreground); }
-.inline-edit {
-  min-height: 2.25rem;
-  padding: var(--space-2);
-  color: var(--note-foreground, var(--foreground));
-  background: var(--note-background, var(--canvas));
-  border: 1px solid currentColor;
-  border-radius: var(--radius-control);
-  font-size: var(--text-control);
-}
-.inline-edit--content { width: 100%; height: 100%; min-height: 3rem; resize: none; line-height: 1.5; }
-.note-head .inline-edit { font-size: var(--text-control); font-weight: 600; }
-.note-draft-state {
-  align-self: flex-start;
-  margin-block-start: auto;
-  padding: var(--space-1) var(--space-2);
-  color: var(--note-foreground);
-  background: color-mix(in srgb, var(--note-foreground) 8%, transparent);
-  border-radius: 999px;
-  font-size: .75rem;
-  line-height: 1.3;
-}
-.note-draft-state.is-stale { color: var(--note-foreground); background: color-mix(in srgb, var(--warning) 22%, transparent); }
-.checklist { gap: var(--space-1); margin-block-start: var(--space-2); }
-.checklist-row {
-  flex: none;
-  min-height: var(--target-size);
-  gap: var(--space-2);
-  color: var(--note-foreground);
-  font-size: .875rem;
-}
-.checklist-row input[type='checkbox'],
-.panel-task input[type='checkbox'],
-.check-label input[type='checkbox'] { width: 1.25rem; height: 1.25rem; flex: none; accent-color: var(--primary); }
-.sticky-note .checklist-row input[type='checkbox'] { accent-color: var(--note-foreground); }
-.wk-checkbox-target {
-  width: var(--target-size);
-  height: var(--target-size);
-  display: grid;
-  place-items: center;
-  flex: none;
-  border-radius: var(--radius-control);
-  cursor: pointer;
-}
-.wk-checkbox-target:hover { background: color-mix(in srgb, currentColor 8%, transparent); }
-.wk-checkbox-target:has(input:focus-visible) { outline: max(3px, var(--focus-width)) solid var(--focus); outline-offset: var(--focus-offset); }
-.wk-checkbox-target input:focus-visible { outline: 0; box-shadow: none; }
-.sticky-note .wk-checkbox-target:has(input:focus-visible) { outline-color: var(--note-foreground); }
-.checklist-row.checked > .editable-text { color: var(--note-foreground); }
+.sticky-note .inline-edit--title { height: 1.5rem; line-height: 1.5rem; }
+.sticky-note .inline-edit:focus-visible { outline: 1px solid color-mix(in srgb, var(--note-foreground) 45%, transparent); outline-offset: 2px; box-shadow: none; }
+.note-body { min-height: 0; flex: 1; margin-block-start: var(--space-2); overflow: auto; overscroll-behavior: contain; scrollbar-width: thin; font-size: .9375rem; line-height: 1.6; }
+.note-body-text.editable-text:hover { background: transparent; cursor: text; }
+.note-body-text { display: block; min-height: 100%; padding: 0; color: inherit; line-height: inherit; white-space: pre-wrap; overflow-wrap: anywhere; }
+.sticky-note .inline-edit--content { display: block; height: 100%; min-height: 0; resize: none; line-height: inherit; }
+.note-properties, .note-drag-grip, .resize-handle, .connection-source { opacity: 0; transition: opacity var(--motion-fast); }
+.sticky-note:is(:hover, :focus-within, .selected) :is(.note-properties, .note-drag-grip, .resize-handle, .connection-source) { opacity: .65; }
+.sticky-note:is(.is-dragging, .is-resizing) { box-shadow: 0 6px 18px color-mix(in srgb, var(--note-foreground) 16%, transparent); }
+.sticky-note.is-dragging { cursor: grabbing; }
+.sticky-note.is-draft { border-style: dashed; }
+.sticky-note.is-saving { cursor: progress; }
+.sticky-note.is-failed { border-color: var(--warning); }
+.note-draft-state { flex: none; align-self: flex-start; display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); margin-block-start: var(--space-2); color: inherit; font-size: .75rem; line-height: 1.3; }
+.note-draft-state.is-stale { color: var(--warning); }
+.task-content { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: var(--space-2); margin-block-start: var(--space-2); }
+.checklist { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: var(--space-1); margin: 0; overflow: auto; overscroll-behavior: contain; scrollbar-width: thin; }
+.checklist:has(.task-empty) { flex: none; }
+.checklist:empty { display: none; }
+.task-empty { margin: 0; color: inherit; opacity: .6; font-size: .875rem; line-height: 1.5; }
+.checklist-row { display: flex; align-items: center; flex: none; min-height: 2.5rem; gap: var(--space-2); color: inherit; font-size: .875rem; }
+.checklist-row > .note-title-text { flex: 1; white-space: normal; overflow-wrap: anywhere; }
+.checklist-row > .inline-edit { flex: 1; min-width: 0; }
+.checklist-row.checked > .editable-text { opacity: .6; text-decoration: line-through; }
+.checklist-row .task-action { opacity: 0; }
+.checklist-row:is(:hover, :focus-within) .task-action, .checklist-confirm .task-action { opacity: 1; }
+.wk-checkbox-target { width: 2.5rem; height: 2.5rem; display: grid; place-items: center; flex: none; cursor: pointer; border-radius: var(--radius-control); }
+.wk-checkbox-target:hover { background: color-mix(in srgb, currentColor 6%, transparent); }
+.sticky-note .checklist-row input[type='checkbox'] { width: 1rem; height: 1rem; accent-color: var(--note-foreground); }
+.wk-checkbox-target:has(input:focus-visible) { outline: var(--focus-width) solid var(--focus); outline-offset: var(--focus-offset); }
+.wk-checkbox-target input:focus-visible { outline: none; box-shadow: none; }
 .checklist-row:has(.checklist-confirm) { flex-wrap: wrap; }
-.checklist-confirm { width: 100%; display: flex; flex-wrap: wrap; justify-content: flex-end; gap: var(--space-1); }
-.add-task,
-.task-action {
-  min-width: var(--target-size);
-  min-height: var(--target-size);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: var(--space-1);
-  padding: var(--space-2);
-  color: inherit;
-  border: 0;
-  border-radius: var(--radius-control);
-  background: transparent;
-  font-size: var(--text-control);
-}
-.add-task:hover,
-.task-action:hover { background: color-mix(in srgb, var(--note-foreground) 10%, transparent); text-decoration: none; }
-.task-action.danger { color: var(--destructive); }
-.sticky-note .task-action.danger { color: var(--note-destructive, var(--note-foreground)); }
-.progress-line { height: .25rem; margin-block-start: var(--space-2); background: color-mix(in srgb, var(--note-foreground) 14%, transparent); }
-.progress-line span { background: var(--note-foreground); opacity: .68; }
-.checklist small { color: var(--note-foreground); font: .75rem/1.4 var(--font-ui); }
-
-.connection-handle,
-.resize-handle { z-index: var(--layer-selection); }
+.checklist-confirm { display: flex; justify-content: flex-end; gap: var(--space-1); width: 100%; }
+.task-entry, .task-footer { flex: none; }
+.add-task, .task-action { display: inline-flex; align-items: center; justify-content: center; gap: var(--space-1); min-height: 2rem; min-width: 2rem; padding: var(--space-1); border: 0; border-radius: var(--radius-control); color: inherit; background: transparent; font-size: .875rem; }
+.add-task { justify-content: flex-start; }
+.add-task:hover, .task-action:hover { background: color-mix(in srgb, var(--note-foreground) 6%, transparent); text-decoration: none; }
+.sticky-note .new-item-input { height: 2rem; font-size: .875rem; line-height: 1.5; }
+.task-action.danger { color: var(--note-destructive, var(--destructive)); }
+.task-footer { display: grid; gap: var(--space-1); }
+.progress-line { height: 3px; margin: 0; background: color-mix(in srgb, var(--note-foreground) 12%, transparent); }
+.progress-line span { background: var(--note-foreground); opacity: .65; }
+.task-footer small { color: inherit; font: .75rem/1.4 var(--font-ui); opacity: .65; }
+.connection-handle, .resize-handle { z-index: var(--layer-selection); }
 .connection-handle {
-  width: 1rem;
-  height: 1rem;
-  border-color: var(--focus);
-  background: var(--canvas);
+  position: absolute; right: auto; bottom: auto; width: 10px; height: 10px; padding: 0;
+  border: 1px solid var(--focus); border-radius: 50%; background: var(--canvas);
+  transform: translate(-50%, -50%); cursor: crosshair; touch-action: none;
 }
-.connection-handle::before,
-.resize-handle::before { content: ''; position: absolute; inset: -.875rem; }
-.connection-target.highlighted { background: var(--focus); box-shadow: 0 0 0 var(--space-2) color-mix(in srgb, var(--focus) 24%, transparent); }
+.connection-anchor-top { left: 50%; top: 0; }
+.connection-anchor-right { left: 100%; top: 50%; }
+.connection-anchor-bottom { left: 50%; top: 100%; }
+.connection-anchor-left { left: 0; top: 50%; }
+/* Targets extend outward from the edge, preserving access to card text even at overview zoom. */
+.connection-handle::before { content: ''; position: absolute; width: max(100%, calc(44px / var(--board-zoom, 1))); height: max(100%, calc(44px / var(--board-zoom, 1))); left: 50%; top: 50%; }
+.connection-handle[data-connection-side='top']::before { translate: -50% -100%; height: min(calc(44px / var(--board-zoom, 1)), var(--connection-hit-reach, 100000px)); }
+.connection-handle[data-connection-side='right']::before { translate: 0 -50%; width: min(calc(44px / var(--board-zoom, 1)), var(--connection-hit-reach, 100000px)); }
+.connection-handle[data-connection-side='bottom']::before { translate: -50% 0; height: min(calc(44px / var(--board-zoom, 1)), var(--connection-hit-reach, 100000px)); }
+.connection-handle[data-connection-side='left']::before { translate: -100% -50%; width: min(calc(44px / var(--board-zoom, 1)), var(--connection-hit-reach, 100000px)); }
+/* Hidden connection targets must not intercept text on neighboring cards. */
+.sticky-note .connection-source { pointer-events: none; }
+.sticky-note:is(:hover, :focus-within, .selected, .is-connection-target) .connection-source { pointer-events: auto; }
+.sticky-note.is-connection-target .connection-source { opacity: .65; }
+.sticky-note .connection-source.highlighted { opacity: 1; background: var(--focus); box-shadow: 0 0 0 1px var(--focus); }
+.connection-endpoint { opacity: 1; background: var(--focus); border-color: var(--canvas); }
+.connection-endpoint.is-reconnecting { pointer-events: none; }
+.connections .connection-path { pointer-events: none; }
+.connections .related-edge { stroke-dasharray: 5 5; }
+.connections .connection-path.is-reconnecting { opacity: .25; }
+.connections .is-selected .connection-path { stroke: var(--primary); opacity: 1; }
+.connections .connection-hit { stroke: transparent; stroke-width: 16px; stroke-dasharray: none; opacity: 1; pointer-events: stroke; vector-effect: non-scaling-stroke; cursor: pointer; }
+.connections .connection-hit:focus-visible { outline: none; stroke: color-mix(in srgb, var(--focus) 18%, transparent); }
 .resize-handle { right: 0; bottom: 0; width: 1.5rem; height: 1.5rem; border: 0; border-radius: var(--radius-control); }
-.resize-handle:hover { background: color-mix(in srgb, var(--note-foreground) 12%, transparent); }
+.resize-handle::before { content: ''; position: absolute; left: 50%; top: 50%; width: max(100%, calc(44px / var(--board-zoom, 1))); height: max(100%, calc(44px / var(--board-zoom, 1))); }
+.resize-handle:hover { background: color-mix(in srgb, var(--note-foreground) 6%, transparent); }
+@media (hover: none) { .note-properties, .resize-handle, .checklist-row .task-action { opacity: .65; } }
 
 .remote-cursors { z-index: var(--layer-collaboration); }
-.remote-cursor { color: var(--collaborator-color); transition: transform 90ms linear; }
+.remote-cursor { color: var(--collaborator-color); transition: left 90ms linear, top 90ms linear; }
 .remote-cursor svg {
   fill: var(--collaborator-color);
   stroke: var(--canvas);
@@ -458,10 +439,7 @@
 @media (max-width: 600px) {
   .sticky-note { padding: min(var(--space-4), 16px); }
   .note-drag-grip { display: none; }
-  .sticky-note .note-properties { width: 44px; min-width: 44px; height: 44px; padding: 8px; }
-  .note-head strong > .editable-text { display: block; max-height: 3em; overflow-y: auto; }
-  .note-body,
-  .checklist { margin-block-start: min(var(--space-2), 8px); }
+  .note-body { margin-block-start: var(--space-2); }
   .canvas-empty {
     left: calc(50% + 2rem);
     width: min(22rem, calc(100% - 6rem));
@@ -492,3 +470,26 @@
   }
   .board-actions .permission-label { margin-inline-end: auto; }
 }
+
+/* Only this world layer has a camera transform. Toolbars and menus remain in screen space. */
+.workspace { height: 100dvh; }
+.board-world { position: absolute; left: 0; top: 0; width: 0; height: 0; overflow: visible; transform-origin: 0 0; }
+.canvas.is-panning, .canvas.is-panning * { cursor: grabbing !important; user-select: none; }
+.board-zoom-controls {
+  position: absolute;
+  z-index: var(--layer-toolbar);
+  inset-block-end: var(--space-4);
+  inset-inline-start: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-1);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+  color: var(--foreground);
+  background: var(--surface);
+  box-shadow: var(--shadow-card);
+}
+.board-zoom-controls > .wk-button:not(.wk-icon-button) { min-width: 4.5rem; font-variant-numeric: tabular-nums; }
+@media (max-width: 767px) { .workspace { height: calc(100dvh - 8.25rem); } }

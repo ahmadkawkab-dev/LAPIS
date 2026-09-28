@@ -31,7 +31,7 @@ export function noteDimensionBounds(
     return {
       minWidth,
       maxWidth: maxNoteWidth,
-      minHeight: Math.min(maxTaskHeight, Math.max(180, 160 + rows)),
+      minHeight: Math.min(360, items.length ? 140 + rows : 144),
       maxHeight: maxTaskHeight,
     };
   }

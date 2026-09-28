@@ -9,6 +9,7 @@ public static class BoardRealtimeEvents
     public const string NoteUpdated = "NoteUpdated";
     public const string NoteDeleted = "NoteDeleted";
     public const string ConnectionCreated = "ConnectionCreated";
+    public const string ConnectionUpdated = "ConnectionUpdated";
     public const string ConnectionDeleted = "ConnectionDeleted";
     public const string MembersChanged = "MembersChanged";
     public const string ProfileChanged = "ProfileChanged";

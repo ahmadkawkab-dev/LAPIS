@@ -1,3 +1,4 @@
+import { screenToWorld, type BoardCamera } from "./boardZoom.ts";
 export type ViewportBounds = {
   left: number;
   top: number;
@@ -12,16 +13,13 @@ export type ViewportDelta = {
 
 export function clientPointToBoard(
   viewport: Pick<ViewportBounds, "left" | "top">,
-  scroll: ViewportDelta,
+  camera: BoardCamera,
   client: { x: number; y: number },
 ) {
-  return {
-    x: Math.max(0, client.x - viewport.left + scroll.left),
-    y: Math.max(0, client.y - viewport.top + scroll.top),
-  };
+  return screenToWorld({ x: client.x - viewport.left, y: client.y - viewport.top }, camera);
 }
 
-/** Returns the smallest scroll delta that reveals a node without recentering it. */
+/** Returns the smallest screen-space reveal delta that reveals a node without recentering it. */
 export function minimalRevealDelta(
   viewport: ViewportBounds,
   node: ViewportBounds,
@@ -45,6 +43,7 @@ export function minimalRevealDelta(
 export function revealBoardNode(
   viewport: HTMLElement,
   node: HTMLElement,
+  panBy: (x: number, y: number) => void,
   padding = 24,
 ) {
   const delta = minimalRevealDelta(
@@ -53,6 +52,6 @@ export function revealBoardNode(
     padding,
   );
   if (delta.left === 0 && delta.top === 0) return false;
-  viewport.scrollBy({ ...delta, behavior: "auto" });
+  panBy(-delta.left, -delta.top);
   return true;
 }

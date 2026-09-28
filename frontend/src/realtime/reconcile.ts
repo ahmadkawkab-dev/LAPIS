@@ -1,4 +1,4 @@
-import type { BoardListItemDto, NoteDto } from "../api";
+import type { BoardListItemDto, ConnectionDto, NoteDto } from "../api";
 import type {
   BoardPresenceSnapshot,
   NoteGeometryPreviewEndedEvent,
@@ -91,4 +91,12 @@ export function shouldClearGeometryPreview(
   incomingVersion: number,
 ): boolean {
   return currentVersion === undefined || incomingVersion > currentVersion;
+}
+
+export function mergeVersionedConnection(current: ConnectionDto[], incoming: ConnectionDto, deletedVersion = -1): ConnectionDto[] {
+  const version = incoming.version ?? 0;
+  if (deletedVersion >= version) return current;
+  const existing = current.find((edge) => edge.id === incoming.id);
+  if (existing && (existing.version ?? 0) >= version) return current;
+  return existing ? current.map((edge) => edge.id === incoming.id ? incoming : edge) : [...current, incoming];
 }

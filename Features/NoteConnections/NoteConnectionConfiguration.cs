@@ -9,6 +9,7 @@ public class NoteConnectionConfiguration : IEntityTypeConfiguration<NoteConnecti
     public void Configure(EntityTypeBuilder<NoteConnection> entity)
     {
         entity.HasKey(connection => connection.Id);
+        entity.Property(connection => connection.Version).IsRowVersion();
         entity.HasIndex(connection => new { connection.BoardId, connection.SourceNoteId });
         entity.HasIndex(connection => new { connection.BoardId, connection.TargetNoteId });
 

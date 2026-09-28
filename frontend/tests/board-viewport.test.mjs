@@ -28,9 +28,9 @@ test('reveal can correct left and vertical clipping without recentering', () => 
   );
 });
 
-test('pointer coordinates remain board-relative after viewport scrolling', () => {
+test('pointer coordinates remain board-relative with independent camera translation', () => {
   assert.deepEqual(
-    clientPointToBoard(viewport, { left: 260, top: 120 }, { x: 350, y: 250 }),
+    clientPointToBoard(viewport, { x: -260, y: -120, zoom: 1 }, { x: 350, y: 250 }),
     { x: 510, y: 320 },
   );
 });

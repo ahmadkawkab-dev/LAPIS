@@ -1,10 +1,12 @@
-import type { NoteDraft, StoredNoteDraft } from "./editorState.ts";
+import type { CreationDraft, NoteDraft, StoredNoteDraft } from "./editorState.ts";
 
 const prefix = "wukna:board-drafts:v1:";
 
 export type DraftStorage = Pick<Storage, "getItem" | "setItem" | "removeItem" | "key" | "length">;
 
 export type EditorDraftStore = {
+  loadCreations: (userId: string, boardId: string) => Record<string, CreationDraft>;
+  saveCreations: (userId: string, boardId: string, creations: Record<string, CreationDraft>) => void;
   load: (userId: string, boardId: string) => StoredNoteDraft[];
   save: (userId: string, boardId: string, drafts: Record<string, NoteDraft>) => void;
   clearBoard: (userId: string, boardId: string) => void;
@@ -33,6 +35,34 @@ export function createEditorDraftStore(storage?: DraftStorage): EditorDraftStore
     try { operation(); } catch { /* Draft recovery is best-effort when storage is unavailable. */ }
   };
   return {
+    loadCreations(userId, boardId) {
+      if (!storage) return {};
+      try {
+        const values: unknown = JSON.parse(storage.getItem(storageKey(userId, boardId) + ":new") ?? "[]");
+        if (!Array.isArray(values)) return {};
+        const creations: Record<string, CreationDraft> = {};
+        for (const note of values) {
+          if (note && typeof note.id === "string" && note.boardId === boardId &&
+              (note.kind === 0 || note.kind === 1) && typeof note.title === "string" &&
+              typeof note.content === "string" && Number.isFinite(note.positionX) &&
+              Number.isFinite(note.positionY) && Number.isFinite(note.width) &&
+              Number.isFinite(note.height) && typeof note.color === "string") {
+            // An interrupted request is recoverable after reload, never permanently "saving".
+            creations[note.id] = { note, status: "draft" };
+          }
+        }
+        return creations;
+      } catch { return {}; }
+    },
+    saveCreations(userId, boardId, creations) {
+      if (!storage) return;
+      safely(() => {
+        const key = storageKey(userId, boardId) + ":new";
+        const notes = Object.values(creations).map(({ note }) => note);
+        if (notes.length) storage.setItem(key, JSON.stringify(notes));
+        else storage.removeItem(key);
+      });
+    },
     load(userId, boardId) {
       if (!storage) return [];
       try {
@@ -64,7 +94,10 @@ export function createEditorDraftStore(storage?: DraftStorage): EditorDraftStore
     },
     clearBoard(userId, boardId) {
       if (!storage) return;
-      safely(() => storage.removeItem(storageKey(userId, boardId)));
+      safely(() => {
+        storage.removeItem(storageKey(userId, boardId));
+        storage.removeItem(storageKey(userId, boardId) + ":new");
+      });
     },
     clearUser(userId) {
       if (!storage) return;

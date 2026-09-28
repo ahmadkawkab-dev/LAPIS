@@ -68,7 +68,11 @@ export type NoteDto = {
   createdAt: string;
   version: number;
 };
+export type ConnectionSide = "top" | "right" | "bottom" | "left";
 export type ConnectionDto = {
+  sourceHandle?: ConnectionSide;
+  targetHandle?: ConnectionSide;
+  version: number;
   id: string;
   boardId: string;
   sourceNoteId: string;
@@ -78,6 +82,9 @@ export type ConnectionDto = {
 };
 
 type CreateNote = {
+  zIndex?: number;
+  width?: number;
+  height?: number;
   kind: 0 | 1 | 2;
   title: string;
   content?: string;
@@ -175,6 +182,10 @@ export function errorMessage(error: unknown): string {
     external_login_already_linked: "That Google account is already linked.",
     cannot_remove_only_login:
       "Google is your only sign-in method and cannot be removed.",
+    connection_version_conflict: "This connection changed in another session. Check its latest state and try again.",
+    connection_version_required: "Reload this connection before moving its endpoints.",
+    invalid_connection_version: "Reload this connection before moving its endpoints.",
+    invalid_connection_handle: "Choose the top, right, bottom, or left side of a card.",
     connection_exists: "Those notes are already connected.",
     invalid_connection: "Select two different notes and a supported relationship.",
     invalid_connection_notes: "Connections must join notes on this board.",
@@ -273,12 +284,19 @@ export const connectionApi = {
     sourceNoteId: string,
     targetNoteId: string,
     type: 0 | 1,
+    sourceHandle: ConnectionSide = "right",
+    targetHandle: ConnectionSide = "left",
   ) =>
     request<ConnectionDto>(connections(id), "POST", {
       sourceNoteId,
       targetNoteId,
       type,
+      sourceHandle,
+      targetHandle,
     }),
+  reconnect: (id: string, connectionId: string, version: number,
+    payload: { sourceNoteId: string; targetNoteId: string; sourceHandle: ConnectionSide; targetHandle: ConnectionSide }) =>
+    request<ConnectionDto>(`${connections(id)}/${encodeURIComponent(connectionId)}`, "PATCH", payload, version),
   remove: (id: string, connectionId: string) =>
     request<void>(
       `${connections(id)}/${encodeURIComponent(connectionId)}`,

@@ -411,8 +411,8 @@ public sealed class BoardHub(
         request.Sequence > 0 && request.Operation switch
         {
             NoteGeometryOperation.Drag =>
-                ValidNonNegative(request.X) &&
-                ValidNonNegative(request.Y) &&
+                ValidFinite(request.X) &&
+                ValidFinite(request.Y) &&
                 request.Width is null &&
                 request.Height is null,
             NoteGeometryOperation.Resize =>
@@ -423,14 +423,14 @@ public sealed class BoardHub(
             _ => false
         };
 
-    private static bool ValidNonNegative(double? value) =>
-        value is double number && double.IsFinite(number) && number >= 0;
+    private static bool ValidFinite(double? value) =>
+        value is double number && double.IsFinite(number);
 
     private static bool ValidPositive(double? value) =>
         value is double number && double.IsFinite(number) && number > 0;
 
     private static bool ValidCoordinate(double value) =>
-        double.IsFinite(value) && value >= 0 && value <= 1_000_000;
+        double.IsFinite(value);
 
     private Guid CurrentUserId() =>
         Guid.TryParse(Context.User?.FindFirst(JwtRegisteredClaimNames.Sub)?.Value, out var userId)

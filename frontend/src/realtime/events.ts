@@ -10,6 +10,7 @@ export const realtimeEvents = {
   noteUpdated: "NoteUpdated",
   noteDeleted: "NoteDeleted",
   connectionCreated: "ConnectionCreated",
+  connectionUpdated: "ConnectionUpdated",
   connectionDeleted: "ConnectionDeleted",
   membersChanged: "MembersChanged",
   profileChanged: "ProfileChanged",
@@ -45,6 +46,7 @@ export type ConnectionCreatedEvent = ConnectionDto;
 export type ConnectionDeletedEvent = {
   boardId: string;
   connectionId: string;
+  version?: number;
 };
 
 export type BoardScopedEvent = { boardId: string };
