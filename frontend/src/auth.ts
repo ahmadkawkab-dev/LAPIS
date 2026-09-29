@@ -12,17 +12,23 @@ export type AccountStatus = {
 };
 
 export class AuthApiError extends Error {
-  constructor(
-    public readonly code: string,
-    public readonly status = 0,
-    public readonly details: string[] = [],
-  ) {
-    super(code);
+  readonly code: string;
+  readonly status: number;
+  readonly details: string[];
+
+  constructor(code: string, status = 0, details: string[] = []) {
+    const normalizedCode = code === "Invalid CSRF token." ? "invalid_csrf" : code;
+    super(normalizedCode);
+    this.code = normalizedCode;
+    this.status = status;
+    this.details = details;
   }
 }
 
 let session: AuthSession | null = null;
 let csrfToken: string | null = null;
+let csrfInFlight: Promise<string> | null = null;
+let bootstrapInFlight: Promise<AuthSession | null> | null = null;
 let refreshInFlight: Promise<AuthSession | null> | null = null;
 let externalExchangeInFlight: Promise<AuthSession> | null = null;
 let sessionExpiredHandler: (() => void) | null = null;
@@ -45,16 +51,61 @@ async function errorFromResponse(response: Response): Promise<AuthApiError> {
   );
 }
 
-async function getCsrfToken(): Promise<string> {
+async function fetchCsrfToken(accessToken?: string): Promise<string> {
+  const response = await fetch("/api/auth/csrf", {
+    credentials: "include",
+    cache: "no-store",
+    headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : undefined,
+  });
+  if (!response.ok) throw await errorFromResponse(response);
+  const body: { token?: string } = await response.json();
+  if (typeof body?.token !== "string" || !body.token.trim())
+    throw new AuthApiError("csrf_unavailable", 503);
+  return body.token;
+}
+
+async function getCsrfToken(fresh = false, rejectedToken?: string): Promise<string> {
+  // Concurrent rejected requests share the replacement instead of invalidating it again.
+  if (fresh && (rejectedToken === undefined || csrfToken === rejectedToken)) csrfToken = null;
   if (csrfToken) return csrfToken;
+  if (csrfInFlight) return csrfInFlight;
+  csrfInFlight = fetchCsrfToken();
+  try {
+    csrfToken = await csrfInFlight;
+    return csrfToken;
+  } finally {
+    csrfInFlight = null;
+  }
+}
 
-  const response = await fetch("/api/auth/csrf", { credentials: "include" });
-  if (!response.ok)
-    throw new Error("Could not start the authentication request.");
+async function isCsrfRejection(response: Response): Promise<boolean> {
+  if (response.status !== 400 && response.status !== 403) return false;
+  const body = await response.clone().json().catch(() => ({}));
+  return body?.code === "invalid_csrf" || body?.error === "Invalid CSRF token.";
+}
 
-  const body: { token: string } = await response.json();
-  csrfToken = body.token;
-  return csrfToken;
+/** Cookie-auth endpoints validate antiforgery before changing or rotating a session. */
+async function csrfFetch(path: string, init: RequestInit): Promise<Response> {
+  const token = await getCsrfToken();
+  const send = (value: string) => {
+    const headers = new Headers(init.headers);
+    headers.set("X-CSRF-TOKEN", value);
+    return fetch(path, { ...init, headers, credentials: "include", cache: "no-store" });
+  };
+  const response = await send(token);
+  if (!await isCsrfRejection(response)) return response;
+  return send(await getCsrfToken(true, token)); // Exactly one retry, never a network-error retry.
+}
+
+/** Every app startup reacquires CSRF; the HttpOnly cookie remains the durable login credential. */
+export async function bootstrapSession(): Promise<AuthSession | null> {
+  if (bootstrapInFlight) return bootstrapInFlight;
+  bootstrapInFlight = (async () => {
+    await getCsrfToken(true);
+    return restoreSession();
+  })();
+  try { return await bootstrapInFlight; }
+  finally { bootstrapInFlight = null; }
 }
 
 async function startSession(
@@ -62,12 +113,11 @@ async function startSession(
   email: string,
   password: string,
 ): Promise<AuthSession> {
-  const response = await fetch(path, {
+  const response = await csrfFetch(path, {
     method: "POST",
     credentials: "include",
     headers: {
       "Content-Type": "application/json",
-      "X-CSRF-TOKEN": await getCsrfToken(),
     },
     body: JSON.stringify({ email, password }),
   });
@@ -100,6 +150,7 @@ export function exchangeGoogleCode(code: string): Promise<AuthSession> {
   // React Strict Mode may run a callback effect twice in development. Both callers must
   // share one request because the database grant is deliberately single-use.
   externalExchangeInFlight ??= (async () => {
+    await getCsrfToken(true);
     const response = await fetch("/api/auth/external/exchange", {
       method: "POST",
       credentials: "include",
@@ -142,10 +193,9 @@ export async function restoreSession(): Promise<AuthSession | null> {
   if (refreshInFlight) return refreshInFlight;
 
   refreshInFlight = (async () => {
-    const response = await fetch("/api/auth/refresh", {
+    const response = await csrfFetch("/api/auth/refresh", {
       method: "POST",
       credentials: "include",
-      headers: { "X-CSRF-TOKEN": await getCsrfToken() },
     });
     if (response.status === 401) {
       session = null;
@@ -176,18 +226,28 @@ export async function apiFetch(
   ) {
     throw new Error("Authenticated requests must target this app’s API.");
   }
-  if (!session) await restoreSession();
+  const active = await restoreSession();
+  if (!active) {
+    sessionExpiredHandler?.();
+    throw new AuthApiError("unauthenticated", 401);
+  }
 
-  const send = (accessToken: string | null) => {
+  let csrfRetried = false;
+  const send = async (accessToken: string) => {
     const headers = new Headers(request.headers);
-    if (accessToken) headers.set("Authorization", `Bearer ${accessToken}`);
-    return fetch(
-      new Request(request.clone(), { headers, credentials: "include" }),
-    );
+    headers.set("Authorization", `Bearer ${accessToken}`);
+    const fetchRequest = () => fetch(new Request(request.clone(), { headers, credentials: "include" }));
+    const response = await fetchRequest();
+    if (csrfRetried || !await isCsrfRejection(response)) return response;
+    csrfRetried = true;
+    // A bearer-protected endpoint needs a token bound to that same identity.
+    // Keep it separate from the anonymous CSRF token used by cookie-only refresh/logout.
+    headers.set("X-CSRF-TOKEN", await fetchCsrfToken(accessToken));
+    return fetchRequest();
   };
 
-  let response = await send(session?.accessToken ?? null);
-  if (response.status === 401 && session) {
+  let response = await send(active.accessToken);
+  if (response.status === 401) {
     session = null;
     const renewed = await restoreSession();
     if (renewed) response = await send(renewed.accessToken);
@@ -217,12 +277,11 @@ export async function realtimeAccessToken(): Promise<string> {
 }
 
 export async function logout(): Promise<void> {
-  const response = await fetch("/api/auth/logout", {
+  const response = await csrfFetch("/api/auth/logout", {
     method: "POST",
     credentials: "include",
-    headers: { "X-CSRF-TOKEN": await getCsrfToken() },
   });
-  if (!response.ok) throw new Error("Logout failed.");
+  if (!response.ok) throw await errorFromResponse(response);
   session = null;
 }
 

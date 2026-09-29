@@ -229,7 +229,7 @@ public static class AuthEndpoints
             CancellationToken cancellationToken) =>
         {
             if (!await antiforgery.IsRequestValidAsync(context))
-                return Results.BadRequest(new { error = "Invalid CSRF token." });
+                return Results.BadRequest(new { code = "invalid_csrf", error = "Invalid CSRF token." });
             if (string.IsNullOrWhiteSpace(request.Email) || string.IsNullOrWhiteSpace(request.Password))
                 return Results.BadRequest(new { error = "Email and password are required." });
 
@@ -251,7 +251,7 @@ public static class AuthEndpoints
             CancellationToken cancellationToken) =>
         {
             if (!await antiforgery.IsRequestValidAsync(context))
-                return Results.BadRequest(new { error = "Invalid CSRF token." });
+                return Results.BadRequest(new { code = "invalid_csrf", error = "Invalid CSRF token." });
             if (string.IsNullOrWhiteSpace(request.Email) || string.IsNullOrWhiteSpace(request.Password))
                 return Results.Unauthorized();
 
@@ -270,7 +270,7 @@ public static class AuthEndpoints
             CancellationToken cancellationToken) =>
         {
             if (!await antiforgery.IsRequestValidAsync(context))
-                return Results.BadRequest(new { error = "Invalid CSRF token." });
+                return Results.BadRequest(new { code = "invalid_csrf", error = "Invalid CSRF token." });
 
             var response = await service.RefreshAsync(
                 SessionIssuer.ReadRefreshCookie(context.Request),
@@ -293,7 +293,7 @@ public static class AuthEndpoints
             CancellationToken cancellationToken) =>
         {
             if (!await antiforgery.IsRequestValidAsync(context))
-                return Results.BadRequest(new { error = "Invalid CSRF token." });
+                return Results.BadRequest(new { code = "invalid_csrf", error = "Invalid CSRF token." });
 
             await service.LogoutAsync(
                 SessionIssuer.ReadRefreshCookie(context.Request), cancellationToken);

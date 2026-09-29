@@ -19,6 +19,7 @@ services:
     env_file:
       - .env.api
     environment:
+      DataProtection__KeysPath: /app/App_Data/data-protection-keys
       ASPNETCORE_ENVIRONMENT: Development
       ConnectionStrings__Postgres: "Host=db;Port=5432;Database=${POSTGRES_DB:?};Username=${POSTGRES_USER:?};Password=${POSTGRES_PASSWORD:?}"
     depends_on:
@@ -28,6 +29,7 @@ services:
       - "127.0.0.1:8081:8080"
     volumes:
       - profile_images:/app/App_Data/profile-images
+      - data_protection_keys:/app/App_Data/data-protection-keys
   
   frontend:
     build:
@@ -50,3 +52,4 @@ services:
 volumes:
   postgres_data:
   profile_images:
+  data_protection_keys:

@@ -145,6 +145,7 @@ public static class NoteEndpoints
                 Color = request.Color ?? "#FFFFFF",
                 IsCompleted = request.IsCompleted ?? false
             };
+            BoardWorkspaceBounds.Constrain(note);
             db.Notes.Add(note);
             activity.MarkUpdated(db, boardId);
             await db.SaveChangesAsync(cancellationToken);
@@ -191,6 +192,9 @@ public static class NoteEndpoints
             if (request.PositionY is not null) note.PositionY = request.PositionY;
             if (request.Width is not null) note.Width = request.Width.Value;
             if (request.Height is not null) note.Height = request.Height.Value;
+            if (request.PositionX is not null || request.PositionY is not null ||
+                request.Width is not null || request.Height is not null)
+                BoardWorkspaceBounds.Constrain(note);
             if (request.ZIndex is not null) note.ZIndex = request.ZIndex.Value;
             if (request.Color is not null) note.Color = request.Color;
             if (request.IsCompleted is not null) note.IsCompleted = request.IsCompleted.Value;

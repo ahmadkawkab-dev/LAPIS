@@ -74,10 +74,18 @@ builder.Services.AddHostedService<ExternalLoginGrantCleanupService>();
 // Keep the pre-rename cryptographic application name so existing protected auth payloads
 // remain readable across deployment of the Wukna identifiers.
 var dataProtection = builder.Services.AddDataProtection().SetApplicationName("Lapis");
-if (builder.Environment.IsProduction())
+var keysPath = builder.Configuration["DataProtection:KeysPath"];
+if (builder.Environment.IsProduction() || !string.IsNullOrWhiteSpace(keysPath))
 {
-    dataProtection.PersistKeysToFileSystem(
-        new System.IO.DirectoryInfo("/app/App_Data/data-protection-keys"));
+    keysPath = string.IsNullOrWhiteSpace(keysPath) ? "/app/App_Data/data-protection-keys" : keysPath;
+    if (!Path.IsPathFullyQualified(keysPath))
+        throw new InvalidOperationException("DataProtection:KeysPath must be an absolute directory path.");
+    var keysDirectory = Directory.CreateDirectory(keysPath);
+    // Only the application account can traverse the key ring. Docker mounts this directory
+    // from a persistent volume; changing its application discriminator would invalidate old payloads.
+    if (!OperatingSystem.IsWindows())
+        File.SetUnixFileMode(keysDirectory.FullName, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
+    dataProtection.PersistKeysToFileSystem(keysDirectory);
 }
 
 builder.Services.AddIdentityCore<User>(options =>

@@ -52,7 +52,7 @@
   touch-action: none;
   overscroll-behavior: contain;
   color: var(--foreground);
-  background: var(--canvas);
+  background: color-mix(in srgb, var(--muted-foreground) 5%, var(--canvas));
 }
 .connections { z-index: var(--layer-connections); width: 1px; height: 1px; overflow: visible; }
 .connections .connection-path {
@@ -474,6 +474,12 @@
 /* Only this world layer has a camera transform. Toolbars and menus remain in screen space. */
 .workspace { height: 100dvh; }
 .board-world { position: absolute; left: 0; top: 0; width: 0; height: 0; overflow: visible; transform-origin: 0 0; }
+.board-boundary {
+  position: absolute;
+  pointer-events: none;
+  background: var(--canvas);
+  outline: calc(1px / var(--board-zoom, 1)) solid color-mix(in srgb, var(--muted-foreground) 22%, transparent);
+}
 .canvas.is-panning, .canvas.is-panning * { cursor: grabbing !important; user-select: none; }
 .board-zoom-controls {
   position: absolute;

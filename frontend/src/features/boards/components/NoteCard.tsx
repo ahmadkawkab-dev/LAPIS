@@ -15,6 +15,7 @@ import { collaboratorStyle } from "../collaboratorIdentity";
 import { screenDeltaToWorld, type BoardPoint } from "../boardZoom";
 import { connectionSides } from "../connectionGeometry";
 import { beginWorldDrag, worldDragPosition, type WorldDragAnchor } from "../boardNavigation";
+import { clampBoardPosition } from "../boardBounds";
 import type { BoardViewportController } from "../hooks/useBoardViewport";
 import type { CreationDraft } from "../editor/editorState";
 import { isDragGesture } from "../gesture";
@@ -219,7 +220,7 @@ export function NoteCard({
   function updateDragPreview() {
     const active = drag.current;
     if (!active?.moved) return;
-    const position = worldDragPosition(active.anchor, viewport.clientToWorld(active.pointer));
+    const position = clampBoardPosition(worldDragPosition(active.anchor, viewport.clientToWorld(active.pointer)), note);
     active.last = { positionX: position.x, positionY: position.y };
     preview(note.id, active.last);
     scheduleGeometry(0, active.last);
@@ -246,7 +247,7 @@ export function NoteCard({
     drag.current = null;
     setInteraction(null);
     if (active.moved || isDragGesture(active.px, active.py, e.clientX, e.clientY)) {
-      const position = worldDragPosition(active.anchor, viewport.clientToWorld({ x: e.clientX, y: e.clientY }));
+      const position = clampBoardPosition(worldDragPosition(active.anchor, viewport.clientToWorld({ x: e.clientX, y: e.clientY })), note);
       const final = { positionX: position.x, positionY: position.y };
       suppressClick.current = true;
       setTimeout(() => { suppressClick.current = false; }, 0);
@@ -324,10 +325,10 @@ export function NoteCard({
     if (!delta) return;
     event.preventDefault();
     select();
-    keyboardPosition.current = {
+    keyboardPosition.current = clampBoardPosition({
       x: keyboardPosition.current.x + delta.x,
       y: keyboardPosition.current.y + delta.y,
-    };
+    }, note);
     const patch = {
       positionX: keyboardPosition.current.x,
       positionY: keyboardPosition.current.y,

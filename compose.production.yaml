@@ -25,6 +25,7 @@ services:
     platform: linux/arm64
     restart: unless-stopped
     environment:
+      DataProtection__KeysPath: /app/App_Data/data-protection-keys
       ASPNETCORE_ENVIRONMENT: Production
       ConnectionStrings__Postgres: "Host=db;Port=5432;Database=wukna;Username=wukna;Password=${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}"
       Jwt__SigningKey: ${JWT_SIGNING_KEY:?Set JWT_SIGNING_KEY}
@@ -72,3 +73,5 @@ volumes:
   postgres_data:
   profile_images:
   data_protection_keys:
+    # Matches the existing Compose-generated name; retain this volume between releases.
+    name: wukna-prod_data_protection_keys

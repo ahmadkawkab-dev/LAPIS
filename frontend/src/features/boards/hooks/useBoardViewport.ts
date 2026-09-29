@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useRef, type RefObject } from "react";
-import { boardZoom, clampZoom, fitBoardContent, nextZoomStep, snapCameraAtDefault, zoomAtPoint,
+import { boardZoom, fitBoardContent, nextZoomStep, zoomAtPoint,
   type BoardBounds, type BoardCamera, type BoardPoint } from "../boardZoom";
 import { clientPointToBoard } from "../boardViewport";
 import { createEdgeAutoPan, panCamera, shouldPanBoard, wheelPanDelta } from "../boardNavigation";
+import { clampBoardCamera } from "../boardBounds";
+import { createBoardViewportState } from "../boardViewportState";
 
-export function useBoardViewport(canvasRef: RefObject<HTMLDivElement | null>, bounds: BoardBounds | null, ready: boolean) {
+export function useBoardViewport(canvasRef: RefObject<HTMLDivElement | null>, bounds: BoardBounds | null, ready: boolean, userId: string, boardId: string) {
   const worldRef = useRef<HTMLDivElement>(null);
   const boundsRef = useRef(bounds);
   boundsRef.current = bounds;
@@ -15,6 +17,10 @@ export function useBoardViewport(canvasRef: RefObject<HTMLDivElement | null>, bo
     let interacting = false;
     const listeners = new Set<() => void>();
     const size = () => ({ width: canvasRef.current?.clientWidth ?? 800, height: canvasRef.current?.clientHeight ?? 600 });
+    let storage: Storage | null = null;
+    try { storage = window.localStorage; } catch { /* Browser preferences may be disabled. */ }
+    const state = createBoardViewportState({ userId, boardId, storage, getSize: size,
+      getContentBounds: () => boundsRef.current, getDevicePixelRatio: () => window.devicePixelRatio });
     const paint = () => {
       frame = 0;
       const world = worldRef.current;
@@ -29,7 +35,8 @@ export function useBoardViewport(canvasRef: RefObject<HTMLDivElement | null>, bo
       }
     };
     function setCamera(next: BoardCamera, deferred = false) {
-      camera = snapCameraAtDefault({ ...next, zoom: clampZoom(next.zoom) }, window.devicePixelRatio);
+      state.set(next);
+      camera = state.getCamera();
       if (deferred) { if (!frame) frame = requestAnimationFrame(paint); }
       else { cancelAnimationFrame(frame); paint(); }
     }
@@ -46,6 +53,10 @@ export function useBoardViewport(canvasRef: RefObject<HTMLDivElement | null>, bo
     const autoPan = createEdgeAutoPan({
       getViewport: () => canvasRef.current?.getBoundingClientRect() ?? null,
       panBy: (delta) => panBy(delta.x, delta.y),
+      constrainVelocity: (speed) => {
+        const next = clampBoardCamera(panCamera(camera, speed), size());
+        return { x: next.x === camera.x ? 0 : speed.x, y: next.y === camera.y ? 0 : speed.y };
+      },
       scheduler: { request: (callback) => requestAnimationFrame(callback), cancel: (frame) => cancelAnimationFrame(frame), now: () => performance.now() },
     });
     return {
@@ -64,14 +75,17 @@ export function useBoardViewport(canvasRef: RefObject<HTMLDivElement | null>, bo
       fit: () => { if (!interacting) setCamera(fitBoardContent(boundsRef.current, size())); },
       panBy,
       panTo: (x: number, y: number, deferred = false) => setCamera({ ...camera, x, y }, deferred),
-      refresh: () => { cancelAnimationFrame(frame); paint(); },
+      initialize: () => { state.initialize(); camera = state.getCamera(); },
+      refresh: () => { state.revalidate(); camera = state.getCamera(); cancelAnimationFrame(frame); paint(); },
+      flush: state.flush,
       setInteracting: (active: boolean) => { interacting = active; },
-      cancel: () => { autoPan.stop(); cancelAnimationFrame(frame); frame = 0; interacting = false; },
+      cancel: () => { autoPan.stop(); cancelAnimationFrame(frame); frame = 0; interacting = false; state.flush(); },
     };
-  }, [canvasRef]);
+  }, [canvasRef, userId, boardId]);
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas || !ready) return;
+    controller.initialize();
     controller.refresh();
     const observer = new ResizeObserver(controller.refresh);
     observer.observe(canvas);
@@ -116,6 +130,9 @@ export function useBoardViewport(canvasRef: RefObject<HTMLDivElement | null>, bo
       if (!pan || event.pointerId !== pan.pointerId) return;
       event.preventDefault(); event.stopPropagation();
       controller.panTo(pan.x + event.clientX - pan.clientX, pan.y + event.clientY - pan.clientY, true);
+      // Consume overshoot at an edge so reversing the hand gesture moves immediately.
+      const camera = controller.getCamera();
+      pan = { ...pan, clientX: event.clientX, clientY: event.clientY, x: camera.x, y: camera.y };
     }
     function up(event?: PointerEvent) {
       if (event && activePointer !== event.pointerId) return;
@@ -135,7 +152,7 @@ export function useBoardViewport(canvasRef: RefObject<HTMLDivElement | null>, bo
       if (delta) { event.preventDefault(); controller.panBy(delta[0], delta[1]); }
     }
     const blur = () => { spaceHeld = false; up(); };
-    const visibility = () => { if (document.hidden) blur(); };
+    const visibility = () => { if (document.hidden) { blur(); controller.flush(); } };
     const keyup = (event: KeyboardEvent) => { if (event.code === "Space") spaceHeld = false; };
     canvas.addEventListener("wheel", wheel, { passive: false });
     canvas.addEventListener("pointerdown", down, true);
@@ -147,6 +164,7 @@ export function useBoardViewport(canvasRef: RefObject<HTMLDivElement | null>, bo
     window.addEventListener("pointercancel", up);
     window.addEventListener("keyup", keyup);
     window.addEventListener("blur", blur);
+    window.addEventListener("pagehide", controller.flush);
     return () => {
       observer.disconnect(); controller.cancel();
       canvas.removeEventListener("wheel", wheel);
@@ -159,6 +177,7 @@ export function useBoardViewport(canvasRef: RefObject<HTMLDivElement | null>, bo
       window.removeEventListener("pointercancel", up);
       window.removeEventListener("keyup", keyup);
       window.removeEventListener("blur", blur);
+      window.removeEventListener("pagehide", controller.flush);
     };
   }, [canvasRef, controller, ready]);
   return { worldRef, controller };
