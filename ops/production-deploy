@@ -71,8 +71,19 @@ if [[ -z "$db_id" || $("$docker" inspect -f '{{.State.Health.Status}}' "$db_id")
   exit 1
 fi
 
+verify_key_mount() {
+  local api_id=$1
+  local mount
+  mount=$("$docker" inspect --format '{{range .Mounts}}{{if eq .Destination "/app/App_Data/data-protection-keys"}}{{.Type}} {{.Name}} {{.RW}}{{end}}{{end}}' "$api_id")
+  if [[ "$mount" != "volume wukna-prod_data_protection_keys true" ]]; then
+    echo "The API must retain the existing wukna-prod_data_protection_keys volume at /app/App_Data/data-protection-keys" >&2
+    exit 1
+  fi
+}
+
 current_api_id=$(compose ps -q api)
 if [[ -n "$current_api_id" ]]; then
+  verify_key_mount "$current_api_id"
   current_image=$("$docker" inspect -f '{{.Config.Image}}' "$current_api_id")
   echo "Current API image: $current_image"
 fi
@@ -96,6 +107,10 @@ for service in api frontend; do
     exit 1
   fi
 done
+
+verify_key_mount "$(compose ps -q api)"
+compose exec -T api test -r /app/App_Data/data-protection-keys
+compose exec -T api test -w /app/App_Data/data-protection-keys
 
 ready=false
 for attempt in {1..15}; do

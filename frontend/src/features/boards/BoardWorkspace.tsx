@@ -56,6 +56,7 @@ import {
   notesAreConnected,
 } from "./connectionGeometry";
 import { contentBounds } from "./boardZoom";
+import { boardBounds, clampBoardPosition, constrainBoardGeometry } from "./boardBounds";
 import { useBoardViewport } from "./hooks/useBoardViewport";
 import { ConnectionLayer, type ConnectionDraft } from "./components/ConnectionLayer";
 import { ZoomControls } from "./components/ZoomControls";
@@ -181,15 +182,15 @@ function WorkspaceContent({
         : remote?.operation === 1
           ? { width: remote.width ?? note.width, height: remote.height ?? note.height }
           : undefined;
-      const candidate = { ...note, ...remoteGeometry, ...visuals[note.id] };
+      const candidate = constrainBoardGeometry({ ...note, ...remoteGeometry, ...visuals[note.id] });
       const bounds = noteDimensionBounds(candidate, notes.filter((item) => item.parentNoteId === note.id), candidate.width);
-      return {
+      return constrainBoardGeometry({
         ...candidate,
         width: clampDimension(candidate.width, bounds.minWidth, bounds.maxWidth),
         height: clampDimension(candidate.height, bounds.minHeight, bounds.maxHeight),
-      };
+      });
     });
-  const viewport = useBoardViewport(canvasRef, contentBounds(visualTop), !loading && !failure);
+  const viewport = useBoardViewport(canvasRef, contentBounds(visualTop), !loading && !failure, currentUserId, id);
   const { remoteEditing, clearAllRemoteEditing, clearRemoteEditingForNote,
     acceptRemoteEditing, endRemoteEditing, stopLocalEditingNow,
     editingChanged, finishEditing, reannounceLocalEditing } = useBoardEditing(id);
@@ -612,14 +613,14 @@ function WorkspaceContent({
     const height = kind === 1 ? 144 : 220;
     const base = { x: Math.round(center.x - width / 2), y: Math.round(center.y - height / 2) };
     const candidates = [[0, 0], [1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [-1, 1]]
-      .map(([x, y]) => ({ x: base.x + x * (width + 24), y: base.y + y * (height + 24) }));
+      .map(([x, y]) => clampBoardPosition({ x: base.x + x * (width + 24), y: base.y + y * (height + 24) }, { width, height }));
     const position = candidates.find((point) =>
       Math.abs(point.x + width / 2 - center.x) <= (canvas?.clientWidth ?? 800) / scale / 2 - width / 2 &&
       Math.abs(point.y + height / 2 - center.y) <= (canvas?.clientHeight ?? 600) / scale / 2 - height / 2 &&
       visualTop.every((note) => point.x + width + 16 <= (note.positionX ?? 0) ||
         point.x >= (note.positionX ?? 0) + note.width + 16 ||
         point.y + height + 16 <= (note.positionY ?? 0) || point.y >= (note.positionY ?? 0) + note.height + 16))
-      ?? { x: base.x + top.length % 6 * 24, y: base.y + top.length % 6 * 24 };
+      ?? clampBoardPosition({ x: base.x + top.length % 6 * 24, y: base.y + top.length % 6 * 24 }, { width, height });
     editor.createNote({
       id: noteId, boardId: id, kind, parentNoteId: null, title: "", content: "",
       positionX: position.x, positionY: position.y,
@@ -1040,6 +1041,8 @@ function WorkspaceContent({
               </div>
             )}
             <div className="board-world" ref={viewport.worldRef}>
+            <div className="board-boundary" aria-hidden="true" style={{ left: boardBounds.left, top: boardBounds.top,
+              width: boardBounds.right - boardBounds.left, height: boardBounds.bottom - boardBounds.top }} />
             <RemoteCursors store={cursorStore} members={members} />
             <ConnectionLayer notes={visualTop} edges={edges} selectedId={selectedEdgeId} editable={editable}
               draft={connectionDraft} select={(edgeId) => { setSelectedEdgeId(edgeId); editor.select(null); }}

@@ -24,6 +24,64 @@ using Xunit;
 public sealed class RealtimeMutationTests(PostgresFixture postgres)
 {
     [Fact]
+    public async Task Note_and_task_geometry_is_bounded_in_storage_and_realtime_events()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var seed = await SeedAsync(includeGuest: false, cancellationToken);
+        var publisher = new RecordingPublisher(postgres);
+        await using var factory = FactoryWithPublisher(seed.Clock, publisher);
+        using var client = AuthorizedClient(factory, seed.Owner, seed.Clock);
+        var url = $"/api/boards/{seed.Board.Id}/notes";
+
+        foreach (var kind in new[] { NoteKind.Standalone, NoteKind.List })
+        foreach (var x in new[] { -100000d, 100000d })
+        foreach (var y in new[] { -100000d, 100000d })
+        {
+            using var response = await client.PostAsJsonAsync(url,
+                new { kind, title = "Bounded card", positionX = x, positionY = y, width = 280, height = 220 },
+                cancellationToken);
+            Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+            var created = Assert.IsType<NoteDto>(await response.Content.ReadFromJsonAsync<NoteDto>(cancellationToken: cancellationToken));
+            Assert.Equal(x < 0 ? BoardWorkspaceBounds.Left : BoardWorkspaceBounds.Right - created.Width, created.PositionX);
+            Assert.Equal(y < 0 ? BoardWorkspaceBounds.Top : BoardWorkspaceBounds.Bottom - created.Height, created.PositionY);
+            Assert.Contains(publisher.Events, item => item.EventName == BoardRealtimeEvents.NoteCreated && Equals(item.Message, created));
+
+            using var patch = new HttpRequestMessage(HttpMethod.Patch, $"{url}/{created.Id}")
+            {
+                Content = JsonContent.Create(new { positionX = -x, positionY = -y, width = 420, height = 360 })
+            };
+            patch.Headers.TryAddWithoutValidation("If-Match", $"\"{created.Version}\"");
+            using var patched = await client.SendAsync(patch, cancellationToken);
+            patched.EnsureSuccessStatusCode();
+            var moved = Assert.IsType<NoteDto>(await patched.Content.ReadFromJsonAsync<NoteDto>(cancellationToken: cancellationToken));
+            Assert.Equal(x > 0 ? BoardWorkspaceBounds.Left : BoardWorkspaceBounds.Right - moved.Width, moved.PositionX);
+            Assert.Equal(y > 0 ? BoardWorkspaceBounds.Top : BoardWorkspaceBounds.Bottom - moved.Height, moved.PositionY);
+            Assert.True(moved.Version > created.Version);
+            Assert.Contains(publisher.Events, item => item.EventName == BoardRealtimeEvents.NoteUpdated && Equals(item.Message, moved));
+            await using var db = postgres.CreateContext();
+            var saved = await db.Notes.AsNoTracking().SingleAsync(note => note.Id == moved.Id, cancellationToken);
+            Assert.Equal(moved.PositionX, saved.PositionX);
+            Assert.Equal(moved.PositionY, saved.PositionY);
+            Assert.Equal(moved.Width, saved.Width);
+            Assert.Equal(moved.Height, saved.Height);
+
+            using var oversizedPatch = new HttpRequestMessage(HttpMethod.Patch, $"{url}/{moved.Id}")
+            {
+                Content = JsonContent.Create(new { width = 20000, height = 12000 })
+            };
+            oversizedPatch.Headers.TryAddWithoutValidation("If-Match", $"\"{moved.Version}\"");
+            using var resized = await client.SendAsync(oversizedPatch, cancellationToken);
+            resized.EnsureSuccessStatusCode();
+            var oversized = Assert.IsType<NoteDto>(await resized.Content.ReadFromJsonAsync<NoteDto>(cancellationToken: cancellationToken));
+            Assert.Equal(BoardWorkspaceBounds.Right - BoardWorkspaceBounds.Left, oversized.Width);
+            Assert.Equal(BoardWorkspaceBounds.Bottom - BoardWorkspaceBounds.Top, oversized.Height);
+            Assert.Equal(BoardWorkspaceBounds.Left, oversized.PositionX);
+            Assert.Equal(BoardWorkspaceBounds.Top, oversized.PositionY);
+        }
+        Assert.True(publisher.SawCommittedNoteState);
+    }
+
+    [Fact]
     public async Task Xmin_is_an_atomic_database_concurrency_token_in_generated_updates()
     {
         var cancellationToken = TestContext.Current.CancellationToken;

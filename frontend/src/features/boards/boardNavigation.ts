@@ -44,11 +44,13 @@ type FrameScheduler = {
   cancel: (frame: number) => void;
   now: () => number;
 };
-export function createEdgeAutoPan({ getViewport, panBy, scheduler }: {
+export function createEdgeAutoPan({ getViewport, panBy, scheduler, constrainVelocity = (speed) => speed }: {
   getViewport: () => ViewportBounds | null;
   /** Return the actual translation applied, so pixel snapping cannot discard slow motion. */
   panBy: (delta: BoardPoint) => BoardPoint;
   scheduler: FrameScheduler;
+  /** Suppress blocked axes so boundary motion cannot accumulate or keep an idle frame loop alive. */
+  constrainVelocity?: (speed: BoardPoint) => BoardPoint;
 }) {
   let pointer: BoardPoint | null = null;
   let onPan: (() => void) | null = null;
@@ -57,7 +59,7 @@ export function createEdgeAutoPan({ getViewport, panBy, scheduler }: {
   let remainder: BoardPoint = { x: 0, y: 0 };
   const velocity = () => {
     const viewport = getViewport();
-    return pointer && viewport ? edgePanVelocity(pointer, viewport) : { x: 0, y: 0 };
+    return pointer && viewport ? constrainVelocity(edgePanVelocity(pointer, viewport)) : { x: 0, y: 0 };
   };
   function cancelFrame() {
     if (frame !== null) scheduler.cancel(frame);
@@ -73,7 +75,7 @@ export function createEdgeAutoPan({ getViewport, panBy, scheduler }: {
     if (!speed.x && !speed.y) { remainder = { x: 0, y: 0 }; return; }
     const seconds = Math.min(edgeAutoPan.maxFrameSeconds, Math.max(0, (time - lastTime) / 1000));
     lastTime = time;
-    remainder = { x: remainder.x + speed.x * seconds, y: remainder.y + speed.y * seconds };
+    remainder = { x: speed.x ? remainder.x + speed.x * seconds : 0, y: speed.y ? remainder.y + speed.y * seconds : 0 };
     const applied = panBy(remainder);
     remainder = { x: remainder.x - applied.x, y: remainder.y - applied.y };
     if (applied.x || applied.y) onPan();

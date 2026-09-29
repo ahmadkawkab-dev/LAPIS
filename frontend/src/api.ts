@@ -160,6 +160,8 @@ export function errorMessage(error: unknown): string {
   if (!(error instanceof AuthApiError))
     return "Could not connect to Wukna. Try again.";
   const messages: Record<string, string> = {
+    invalid_csrf: "Could not verify this request. Please try again.",
+    csrf_unavailable: "Could not restore your session. Please try again shortly.",
     network_failure:
       "Could not reach Wukna. Check your connection and try again.",
     unauthenticated: "Your session expired. Please sign in again.",

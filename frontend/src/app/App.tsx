@@ -4,7 +4,7 @@ import {
   exchangeGoogleCode,
   logout,
   logoutEverywhere,
-  restoreSession,
+  bootstrapSession,
   reconcileSessionUser,
   setSessionExpiredHandler,
   type AuthSession,
@@ -24,6 +24,7 @@ import { AccountPanel } from "../features/account/AccountPanel";
 import { accountSectionForPath } from "../features/account/accountRoute";
 import { Wordmark } from "../components/brand/Wordmark";
 import { AppShell } from "../components/navigation/AppShell";
+import { Button } from "../components/ui/Button";
 import { Notice } from "../components/ui/Notice";
 import { BoardLanding } from "../features/boards/BoardLanding";
 import { SoonPage } from "../features/future/PreviewUI";
@@ -45,6 +46,7 @@ export default function App() {
     [session, setSession] = useState<AuthSession | null>(currentSession()),
     [starting, setStarting] = useState(true),
     [startupError, setStartupError] = useState(""),
+    [startupBlocked, setStartupBlocked] = useState(false),
     [notice, setNotice] = useState<{ message: string; tone: "default" | "warning" } | null>(null),
     [boards, setBoards] = useState<BoardListItemDto[]>([]),
     [loading, setLoading] = useState(false),
@@ -61,40 +63,45 @@ export default function App() {
     window.addEventListener("popstate", pop);
     return () => window.removeEventListener("popstate", pop);
   }, []);
+  const initializeSession = useCallback(async () => {
+    setStarting(true);
+    setStartupBlocked(false);
+    setStartupError("");
+    try {
+      let callbackError = "";
+      let linked = false;
+      if (window.location.pathname === "/auth/callback") {
+        const params = new URLSearchParams(window.location.search),
+          code = params.get("code"),
+          error = params.get("error");
+        linked = params.get("linked") === "google";
+        window.history.replaceState(null, "", "/boards");
+        setPath("/boards");
+        if (error) {
+          callbackError = errorMessage(new AuthApiError(error));
+          setStartupError(callbackError);
+        }
+        if (code) {
+          setSession(await exchangeGoogleCode(code));
+          return;
+        }
+      }
+      const restored = await bootstrapSession();
+      setSession(restored);
+      if (restored && callbackError) notify(callbackError);
+      else if (restored && linked) notify("Google account linked");
+    } catch (cause) {
+      setStartupBlocked(true);
+      setStartupError(errorMessage(cause));
+    } finally {
+      setStarting(false);
+    }
+  }, [notify]);
   useEffect(() => {
     if (started.current) return;
     started.current = true;
-    void (async () => {
-      try {
-        let callbackError = "";
-        let linked = false;
-        if (window.location.pathname === "/auth/callback") {
-          const params = new URLSearchParams(window.location.search),
-            code = params.get("code"),
-            error = params.get("error");
-          linked = params.get("linked") === "google";
-          window.history.replaceState(null, "", "/boards");
-          setPath("/boards");
-          if (error) {
-            callbackError = errorMessage(new AuthApiError(error));
-            setStartupError(callbackError);
-          }
-          if (code) {
-            setSession(await exchangeGoogleCode(code));
-            return;
-          }
-        }
-        const restored = await restoreSession();
-        setSession(restored);
-        if (restored && callbackError) notify(callbackError);
-        else if (restored && linked) notify("Google account linked");
-      } catch (cause) {
-        setStartupError(errorMessage(cause));
-      } finally {
-        setStarting(false);
-      }
-    })();
-  }, [notify]);
+    void initializeSession();
+  }, [initializeSession]);
   const loadBoards = useCallback(async (showLoading = true) => {
     if (showLoading) setLoading(true);
     setFailure("");
@@ -141,14 +148,14 @@ export default function App() {
     return () => setSessionExpiredHandler(null);
   }, []);
   useEffect(() => {
-    if (!starting && !session && !["/", "/login", "/register", "/privacy", "/terms"].includes(path)) {
+    if (!starting && !startupBlocked && !session && !["/", "/login", "/register", "/privacy", "/terms"].includes(path)) {
       window.history.replaceState(null, "", "/login");
       setPath("/login");
     }
-  }, [starting, session, path]);
+  }, [starting, startupBlocked, session, path]);
   useEffect(() => {
-    if (session) void loadBoards().catch(() => undefined);
-  }, [session, loadBoards]);
+    if (!starting && !startupBlocked && session) void loadBoards().catch(() => undefined);
+  }, [starting, startupBlocked, session, loadBoards]);
   async function signOut(all: boolean) {
     try {
       if (all) await logoutEverywhere();
@@ -183,23 +190,23 @@ export default function App() {
     notify("Board deleted");
   }
   useEffect(() => {
-    if (!session) return;
+    if (starting || startupBlocked || !session) return;
     void realtimeConnection.start();
     return () => void realtimeConnection.stop();
-  }, [session?.user.id]);
+  }, [starting, startupBlocked, session?.user.id]);
   useEffect(() => {
-    if (!session) return;
+    if (starting || startupBlocked || !session) return;
     return realtimeConnection.onReconnected(() => loadBoards(false));
-  }, [loadBoards, session?.user.id]);
+  }, [starting, startupBlocked, loadBoards, session?.user.id]);
   useEffect(() => {
-    if (!session) return;
+    if (starting || startupBlocked || !session) return;
     return realtimeConnection.on<UserProfileChangedEvent>(realtimeEvents.userProfileChanged, (message) => {
       if (message.userId !== session.user.id) return;
       void profileApi.get().then(onProfileUpdated).catch(() => undefined);
     });
-  }, [onProfileUpdated, session?.user.id]);
+  }, [starting, startupBlocked, onProfileUpdated, session?.user.id]);
   useEffect(() => {
-    if (!session) return;
+    if (starting || startupBlocked || !session) return;
     const removeChanged = realtimeConnection.on<BoardSummaryChangedEvent>(
       realtimeEvents.boardSummaryChanged,
       (message) => setBoards((current) => mergeBoardSummary(current, message)),
@@ -213,15 +220,20 @@ export default function App() {
       removeChanged();
       removeDeleted();
     };
-  }, [session?.user.id]);
+  }, [starting, startupBlocked, session?.user.id]);
   useEffect(() => {
-    if (!session || !boardId) return;
+    if (starting || startupBlocked || !session || !boardId) return;
     return realtimeConnection.subscribeBoard(boardId);
-  }, [boardId, session?.user.id]);
+  }, [starting, startupBlocked, boardId, session?.user.id]);
   if (path === "/privacy") return <PrivacyPolicyPage />;
   if (path === "/terms") return <TermsOfServicePage />;
   if (starting)
     return <div className="wk-startup"><Wordmark /><p role="status">Restoring your session…</p></div>;
+  if (startupBlocked)
+    return <div className="wk-startup"><Wordmark /><h1>Could not restore your session</h1>
+      <p role="alert">{startupError}</p>
+      <Button onClick={() => void initializeSession()}>Try again</Button>
+    </div>;
   if (!session && path === "/") return <PublicHome />;
   if (!session)
     return (
