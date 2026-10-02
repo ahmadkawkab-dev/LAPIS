@@ -1,0 +1,39 @@
+.wk-notifications-page { min-height: 100%; background: var(--background); }
+.wk-notifications-page > header { min-height: 5.8125rem; display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: 1.125rem 1.75rem; border-bottom: 1px solid var(--border); background: var(--surface); }
+.wk-notifications-page > header span { color: var(--muted-foreground); font-size: .625rem; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
+.wk-notifications-page h1 { margin: .125rem 0; font-size: 1.25rem; line-height: 1.2; }
+.wk-notifications-page > header p { margin: .125rem 0; color: var(--muted-foreground); font-size: .75rem; }
+.wk-notifications-page > header .wk-button { min-height: 2.25rem; white-space: nowrap; font-size: .75rem; }
+.wk-notifications-toolbar { min-height: 2.75rem; display: flex; align-items: center; gap: .75rem; padding: 0 1.75rem; border-bottom: 1px solid var(--border); background: var(--surface); }
+.wk-notifications-toolbar > button:not(.wk-button) { align-self: stretch; padding: .375rem .5rem; border: 0; border-bottom: 2px solid transparent; color: var(--muted-foreground); background: transparent; font-size: .75rem; }
+.wk-notifications-toolbar > button.active { border-color: var(--primary); color: var(--primary); font-weight: 700; }
+.wk-notifications-toolbar .wk-button { margin-left: auto; font-size: .75rem; }
+.wk-notifications-layout { width: min(100% - 2rem, 88rem); display: grid; grid-template-columns: minmax(0, 1.9fr) minmax(15rem, .7fr); gap: .75rem; margin: .75rem auto 1.5rem; }
+.wk-notifications-list, .wk-notifications-side > div { border: 1px solid var(--border); border-radius: .5rem; background: var(--surface); }
+.wk-notifications-list { min-height: 38rem; }
+.wk-notifications-list > h2 { margin: 0; padding: .875rem 1rem; border-bottom: 1px solid var(--border); font-size: .75rem; }
+.wk-notifications-list ul, .wk-notifications-side ul { margin: 0; padding: 0; list-style: none; }
+.wk-notifications-list li { display: flex; align-items: start; gap: .75rem; padding: .875rem 1rem; border-bottom: 1px solid var(--border); }
+.wk-notification-unread { background: color-mix(in srgb, var(--selected) 35%, var(--surface)); }
+.wk-notification-icon { width: 2rem; height: 2rem; flex: none; display: grid; place-items: center; border-radius: 50%; color: var(--primary); background: var(--selected); }
+.wk-notification-copy { min-width: 0; flex: 1; }
+.wk-notification-copy strong { display: block; overflow-wrap: anywhere; font-size: .75rem; }
+.wk-notification-copy p, .wk-notification-copy time { display: block; margin: .25rem 0; color: var(--muted-foreground); font-size: .6875rem; }
+.wk-notification-actions { max-width: 16rem; display: flex; flex-wrap: wrap; justify-content: end; gap: .125rem; }
+.wk-notification-actions .wk-button { min-height: 1.75rem; padding: .25rem .375rem; font-size: .625rem; }
+.wk-notifications-side { display: grid; align-content: start; gap: .75rem; }
+.wk-notifications-side > div { padding: 1rem; }
+.wk-notifications-side h2 { margin: 0 0 .25rem; font-size: .875rem; }
+.wk-notifications-side p { margin: .25rem 0 .75rem; color: var(--muted-foreground); font-size: .6875rem; }
+.wk-notifications-side li button { width: 100%; display: flex; align-items: center; gap: .5rem; padding: .5rem; border: 0; border-radius: .375rem; color: var(--foreground); background: var(--selected); text-align: start; }
+.wk-notifications-side li + li { margin-top: .375rem; }
+.wk-notifications-side li time { flex: none; font-size: .625rem; }
+.wk-notifications-side li strong { min-width: 0; flex: 1; overflow-wrap: anywhere; font-size: .6875rem; }
+.wk-notifications-side label { display: grid; gap: .5rem; margin-top: .75rem; font-size: .6875rem; }
+.wk-notifications-side select { min-height: 2.25rem; padding: .375rem .5rem; border: 1px solid var(--control-border); border-radius: var(--radius-control); color: var(--foreground); background: var(--canvas); }
+.wk-notifications-status, .wk-notifications-empty { padding: 3rem 1rem; color: var(--muted-foreground); text-align: center; font-size: .75rem; }
+.wk-notifications-empty h3 { margin: .5rem 0 .25rem; color: var(--foreground); font-size: .875rem; }
+.wk-notifications-empty p { margin: 0; }
+.wk-notifications-error { display: flex; align-items: center; gap: 1rem; margin: .75rem 1rem; padding: .75rem 1rem; border: 1px solid var(--destructive); border-radius: .375rem; color: var(--destructive); background: var(--surface); font-size: .75rem; }
+@media (max-width: 900px) { .wk-notifications-layout { grid-template-columns: minmax(0, 1fr); } .wk-notifications-list { min-height: 0; } }
+@media (max-width: 600px) { .wk-notifications-page > header { min-height: 4.5rem; padding: .75rem 1rem; } .wk-notifications-toolbar { padding: 0 1rem; } .wk-notifications-layout { width: calc(100% - 1.25rem); } .wk-notifications-list li { flex-wrap: wrap; } .wk-notification-actions { max-width: none; width: 100%; justify-content: start; padding-left: 2.75rem; } }

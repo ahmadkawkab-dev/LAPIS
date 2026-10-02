@@ -10,6 +10,48 @@ export type BoardDetailDto = {
   role: 0 | 1;
   canEdit: boolean;
 };
+export type PersonalTaskDto = {
+  id: string;
+  title: string;
+  description: string | null;
+  plannedDate: string | null;
+  plannedTime: string | null;
+  timeZoneId: string | null;
+  plannedAtUtc: string | null;
+  completedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+  listId: string | null;
+};
+export type TaskWrite = Pick<PersonalTaskDto, "title" | "description" | "plannedDate" | "plannedTime" | "timeZoneId" | "listId">;
+export type PersonalTaskPageDto = { items: PersonalTaskDto[]; hasMore: boolean };
+export type TaskListDto = { id: string; name: string; createdAt: string; updatedAt: string };
+export type PlanningSettingsDto = { timeZoneId: string | null };
+export type TaskTemplateItem = Pick<PersonalTaskDto, "title" | "description" | "plannedTime" | "timeZoneId">;
+export type TaskTemplateDto = { id: string; name: string; items: TaskTemplateItem[]; createdAt: string; updatedAt: string };
+export type TaskTemplatePageDto = { items: TaskTemplateDto[]; hasMore: boolean; totalCount: number };
+export type TaskReminderDto = { taskId: string; minutesBefore: number; dueAtUtc: string; deliveredAt: string | null };
+export type TaskNotificationDto = { taskId: string; taskTitle: string; issuedAt: string; readAt: string | null; dismissedAt: string | null };
+export type UpcomingReminderDto = { taskId: string; taskTitle: string; dueAtUtc: string; minutesBefore: number };
+export type NotificationPageDto = { items: TaskNotificationDto[]; nextCursor: string | null; totalCount: number; unreadCount: number };
+export type UpcomingReminderPageDto = { items: UpcomingReminderDto[]; nextCursor: string | null; totalCount: number };
+export type CalendarEventDto = {
+  id: string; title: string; description: string | null; location: string | null;
+  isAllDay: boolean; allDayStartDate: string | null; allDayEndDateExclusive: string | null;
+  localStart: string | null; localEnd: string | null; timeZoneId: string | null;
+  startAtUtc: string | null; endAtUtc: string | null; createdAt: string; updatedAt: string;
+};
+export type CalendarEventWrite = Pick<CalendarEventDto,
+  "title" | "description" | "location" | "isAllDay" | "allDayStartDate" |
+  "allDayEndDateExclusive" | "localStart" | "localEnd" | "timeZoneId">;
+export type CalendarItemDto = {
+  source: "task" | "event"; id: string; title: string;
+  scheduleKind: "dateOnlyTask" | "timedTask" | "allDayEvent" | "timedEvent";
+  startDate: string | null; endDateExclusive: string | null;
+  startAtUtc: string | null; endAtUtc: string | null; timeZoneId: string | null;
+  isCompleted: boolean | null;
+};
+export type CalendarRangeDto = { items: CalendarItemDto[]; hasMore: boolean };
 export type BoardPreviewNodeDto = {
   id: string;
   type: 0 | 1;
@@ -160,6 +202,35 @@ export function errorMessage(error: unknown): string {
   if (!(error instanceof AuthApiError))
     return "Could not connect to Wukna. Try again.";
   const messages: Record<string, string> = {
+    invalid_task_title: "Give the task a title of up to 200 characters.",
+    invalid_task_description: "Keep the description under 4,000 characters.",
+    invalid_task_schedule: "Choose a date before adding a time and time zone.",
+    invalid_task_time_zone: "Choose a valid time zone.",
+    invalid_task_local_time: "That local time is unavailable or occurs twice. Choose another time.",
+    invalid_task_date: "Choose a valid date for the task.",
+    invalid_task_list: "Choose one of your task lists.",
+    invalid_task_view: "Choose a valid task view.",
+    invalid_task_page: "Could not load that page of tasks. Refresh and try again.",
+    invalid_task_template_name: "Give the template a name of up to 80 characters.",
+    invalid_task_template_items: "Choose between one and 50 tasks for the template.",
+    invalid_task_template_item: "Check each template task's title, description, and schedule.",
+    invalid_task_template_page: "Could not load that page of templates. Refresh and try again.",
+    invalid_notification_page: "Could not load that page of notifications. Refresh and try again.",
+    invalid_reminder_offset: "Choose a reminder from now until seven days before the task.",
+    reminder_requires_open_timed_task: "Add a date and time to an open task before setting a reminder.",
+    reminder_time_in_past: "Choose a reminder time that is still in the future.",
+    invalid_snooze_duration: "Choose a snooze between five minutes and one day.",
+    completed_task_cannot_snooze: "Reopen the task before snoozing its reminder.",
+    invalid_task_list_name: "Give the list a name of up to 80 characters.",
+    task_list_name_taken: "You already have a list with that name.",
+    invalid_calendar_range: "Choose a calendar range of up to six weeks.",
+    invalid_calendar_page: "Could not load more calendar items. Refresh and try again.",
+    invalid_calendar_time_zone: "Choose a valid calendar time zone.",
+    invalid_calendar_event_title: "Give the event a title of up to 200 characters.",
+    invalid_calendar_event_details: "Keep the event description under 4,000 characters and location under 200.",
+    invalid_calendar_event_schedule: "Check the event's start and end dates or times.",
+    invalid_calendar_event_time_zone: "Choose a valid event time zone.",
+    invalid_calendar_event_local_time: "That local time is unavailable or occurs twice. Choose another time.",
     invalid_csrf: "Could not verify this request. Please try again.",
     csrf_unavailable: "Could not restore your session. Please try again shortly.",
     network_failure:
@@ -238,6 +309,79 @@ export const boardApi = {
       `${board(id)}/guests/${encodeURIComponent(userId)}`,
       "DELETE",
     ),
+};
+
+const tasks = "/api/tasks";
+const taskPath = (id: string) => `${tasks}/${encodeURIComponent(id)}`;
+
+export const taskApi = {
+  list: (view: "inbox" | "today" | "upcoming" | "all" | "completed" | "week", date: string, offset = 0, listId: string | null = null) =>
+    request<PersonalTaskPageDto>(`${tasks}?view=${view}&date=${date}&limit=50&offset=${offset}${listId ? `&listId=${encodeURIComponent(listId)}` : ""}`),
+  get: (id: string) => request<PersonalTaskDto>(taskPath(id)),
+  create: (payload: TaskWrite) => request<PersonalTaskDto>(tasks, "POST", payload),
+  update: (id: string, payload: TaskWrite) => request<PersonalTaskDto>(taskPath(id), "PUT", payload),
+  complete: (id: string) => request<PersonalTaskDto>(`${taskPath(id)}/complete`, "POST"),
+  reopen: (id: string) => request<PersonalTaskDto>(`${taskPath(id)}/reopen`, "POST"),
+  schedule: (id: string, plannedDate: string) => request<PersonalTaskDto>(`${taskPath(id)}/schedule`, "POST", { plannedDate }),
+  remove: (id: string) => request<void>(taskPath(id), "DELETE"),
+  clearDay: (date: string) => request<{ deleted: number }>(`${tasks}/day/${encodeURIComponent(date)}`, "DELETE"),
+};
+
+export const taskReminderApi = {
+  get: (id: string) => request<TaskReminderDto | undefined>(`${taskPath(id)}/reminder`),
+  put: (id: string, minutesBefore: number) => request<TaskReminderDto>(`${taskPath(id)}/reminder`, "PUT", { minutesBefore }),
+  remove: (id: string) => request<void>(`${taskPath(id)}/reminder`, "DELETE"),
+};
+
+const notifications = "/api/notifications";
+export const notificationApi = {
+  list: () => request<TaskNotificationDto[]>(notifications),
+  upcoming: () => request<UpcomingReminderDto[]>(`${notifications}/upcoming`),
+  page: (cursor: string | null = null, unreadOnly = false) => request<NotificationPageDto>(
+    `${notifications}/page?limit=30&unreadOnly=${unreadOnly}${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ""}`),
+  upcomingPage: (cursor: string | null = null) => request<UpcomingReminderPageDto>(
+    `${notifications}/upcoming/page?limit=20${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ""}`),
+  read: (id: string) => request<void>(`${notifications}/${encodeURIComponent(id)}/read`, "POST"),
+  readAll: () => request<void>(`${notifications}/read-all`, "POST"),
+  dismiss: (id: string) => request<void>(`${notifications}/${encodeURIComponent(id)}/dismiss`, "POST"),
+  snooze: (id: string, minutes: number) => request<void>(`${notifications}/${encodeURIComponent(id)}/snooze`, "POST", { minutes }),
+};
+
+const taskTemplates = "/api/task-templates";
+const taskTemplatePath = (id: string) => `${taskTemplates}/${encodeURIComponent(id)}`;
+export const taskTemplateApi = {
+  list: () => request<TaskTemplateDto[]>(taskTemplates),
+  page: (search = "", offset = 0) => request<TaskTemplatePageDto>(
+    `${taskTemplates}/page?limit=50&offset=${offset}&search=${encodeURIComponent(search)}`),
+  get: (id: string) => request<TaskTemplateDto>(taskTemplatePath(id)),
+  create: (name: string, items: TaskTemplateItem[]) => request<TaskTemplateDto>(taskTemplates, "POST", { name, items }),
+  update: (id: string, name: string, items: TaskTemplateItem[]) => request<TaskTemplateDto>(taskTemplatePath(id), "PUT", { name, items }),
+  remove: (id: string) => request<void>(taskTemplatePath(id), "DELETE"),
+  apply: (id: string, plannedDate: string) => request<PersonalTaskDto[]>(`${taskTemplatePath(id)}/apply`, "POST", { plannedDate }),
+};
+
+const taskLists = "/api/task-lists";
+export const taskListApi = {
+  list: () => request<TaskListDto[]>(taskLists),
+  create: (name: string) => request<TaskListDto>(taskLists, "POST", { name }),
+  rename: (id: string, name: string) => request<TaskListDto>(`${taskLists}/${encodeURIComponent(id)}`, "PUT", { name }),
+  remove: (id: string) => request<void>(`${taskLists}/${encodeURIComponent(id)}`, "DELETE"),
+};
+
+export const planningSettingsApi = {
+  get: () => request<PlanningSettingsDto>(`${tasks}/settings`),
+  update: (timeZoneId: string) => request<PlanningSettingsDto>(`${tasks}/settings`, "PUT", { timeZoneId }),
+};
+
+const calendar = "/api/calendar";
+const calendarEvent = (id: string) => `${calendar}/events/${encodeURIComponent(id)}`;
+export const calendarApi = {
+  range: (from: string, to: string, timeZone: string, offset = 0) =>
+    request<CalendarRangeDto>(`${calendar}?from=${from}&to=${to}&timeZone=${encodeURIComponent(timeZone)}&offset=${offset}`),
+  getEvent: (id: string) => request<CalendarEventDto>(calendarEvent(id)),
+  createEvent: (payload: CalendarEventWrite) => request<CalendarEventDto>(`${calendar}/events`, "POST", payload),
+  updateEvent: (id: string, payload: CalendarEventWrite) => request<CalendarEventDto>(calendarEvent(id), "PUT", payload),
+  removeEvent: (id: string) => request<void>(calendarEvent(id), "DELETE"),
 };
 
 export const profileApi = {

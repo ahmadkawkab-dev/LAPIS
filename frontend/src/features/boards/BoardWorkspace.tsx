@@ -11,12 +11,9 @@ import {
   ArrowLeft,
   Link2,
   ListChecks,
-  MessageSquare,
   Plus,
   Share2,
-  Sparkles,
   StickyNote,
-  X,
 } from "lucide-react";
 import {
   AuthApiError,
@@ -32,7 +29,7 @@ import {
   type PatchNote,
 } from "../../api";
 import { Dialog } from "../../components/ui/Dialog";
-import { Button, IconButton } from "../../components/ui/Button";
+import { Button } from "../../components/ui/Button";
 import { BoardPresence } from "./BoardPresence";
 import { SharePanel, TasksPanel } from "./components/BoardPanels";
 import type { VisualPatch } from "./boardTypes";
@@ -103,7 +100,7 @@ import {
 } from "../../realtime/reconcile";
 import { editingUserIds } from "../../realtime/editing";
 
-type Panel = "tasks" | "share" | "chat" | null;
+type Panel = "tasks" | "share" | null;
 type WorkspaceProps = {
   id: string;
   titleOverride?: string;
@@ -918,9 +915,6 @@ function WorkspaceContent({
             <ArrowLeft size={18} aria-hidden="true" /> Boards
           </Button>
           <span className="divider" />
-          <span className="board-symbol">
-            <Sparkles size={14} />
-          </span>
           <h1>{titleOverride ?? board?.title ?? "Board"}</h1>
         </div>
         <div className="board-actions">
@@ -946,16 +940,6 @@ function WorkspaceContent({
           >
             <Share2 size={18} aria-hidden="true" /> Share
           </Button>
-          <Button
-            variant="secondary"
-            onClick={() => {
-              const next = panel === "chat" ? null : "chat";
-              if (next) editor.closeInspector(false);
-              setPanel(next);
-            }}
-          >
-            <MessageSquare size={18} aria-hidden="true" /> Chat
-          </Button>
         </div>
       </header>
       {loading ? (
@@ -974,34 +958,33 @@ function WorkspaceContent({
           <div className="canvas-tools">
             {editable && (
               <>
-                <IconButton
-                  label="New note"
+                <Button variant="secondary" size="compact" className="board-tool-button"
+                  aria-label="New note"
                   onClick={() => void create(0)}
                 >
-                  <StickyNote size={18} aria-hidden="true" />
-                </IconButton>
-                <IconButton
-                  label="New task list"
+                  <StickyNote size={16} aria-hidden="true" /><span>Note</span>
+                </Button>
+                <Button variant="secondary" size="compact" className="board-tool-button"
+                  aria-label="New task list"
                   onClick={() => void create(1)}
                 >
-                  <ListChecks size={18} aria-hidden="true" />
-                </IconButton>
-                <IconButton
-                  label={connecting ? "Cancel connection mode" : "Connect notes"}
-                  className={connecting ? "active" : ""}
+                  <ListChecks size={16} aria-hidden="true" /><span>Task list</span>
+                </Button>
+                <Button variant="secondary" size="compact" className={`board-tool-button${connecting ? " active" : ""}`}
+                  aria-label={connecting ? "Cancel connection mode" : "Connect notes"}
                   aria-pressed={connecting}
                   onClick={() => {
                     if (connecting) connectCancel();
                     else setConnecting(true);
                   }}
                 >
-                  <Link2 size={18} aria-hidden="true" />
-                </IconButton>
+                  <Link2 size={16} aria-hidden="true" /><span>Connect</span>
+                </Button>
               </>
             )}
             <span className="tool-rule" />
-            <IconButton
-              label="Tasks"
+            <Button variant="secondary" size="compact" className="board-tool-button"
+              aria-label="Tasks"
               aria-pressed={panel === "tasks"}
               onClick={() => {
                 const next = panel === "tasks" ? null : "tasks";
@@ -1009,8 +992,8 @@ function WorkspaceContent({
                 setPanel(next);
               }}
             >
-              <ListChecks size={18} aria-hidden="true" />
-            </IconButton>
+              <ListChecks size={16} aria-hidden="true" /><span>Tasks</span>
+            </Button>
           </div>
           <div
             className="canvas"
@@ -1229,19 +1212,6 @@ function WorkspaceContent({
               removeGuest={removeGuest}
               close={() => setPanel(null)}
             />
-          )}
-          {panel === "chat" && (
-            <aside className="side-panel">
-              <div className="panel-head">
-                <h2>Board chat</h2>
-                <IconButton label="Close chat" onClick={() => setPanel(null)}>
-                  <X size={18} aria-hidden="true" />
-                </IconButton>
-              </div>
-              <div className="panel-empty">
-                Chat is not available on this board yet. Use notes to share ideas with your board members.
-              </div>
-            </aside>
           )}
         </main>
       )}

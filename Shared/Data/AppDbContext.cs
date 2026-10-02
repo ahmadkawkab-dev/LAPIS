@@ -4,6 +4,9 @@ using Wukna.Features.Board;
 using Wukna.Features.Notes;
 using Wukna.Features.NoteConnection;
 using Wukna.Features.Auth;
+using Wukna.Features.Tasks;
+using Wukna.Features.Calendar;
+using Wukna.Features.Notifications;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 
@@ -23,6 +26,13 @@ public class WuknaDbContext : IdentityUserContext<User, Guid>
     public DbSet<NoteConnection> NoteConnections => Set<NoteConnection>();
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
     public DbSet<ExternalLoginGrant> ExternalLoginGrants => Set<ExternalLoginGrant>();
+    public DbSet<PersonalTask> PersonalTasks => Set<PersonalTask>();
+    public DbSet<PersonalTaskList> PersonalTaskLists => Set<PersonalTaskList>();
+    public DbSet<TaskTemplate> TaskTemplates => Set<TaskTemplate>();
+    public DbSet<PlanningSettings> PlanningSettings => Set<PlanningSettings>();
+    public DbSet<CalendarEvent> CalendarEvents => Set<CalendarEvent>();
+    public DbSet<TaskReminder> TaskReminders => Set<TaskReminder>();
+    public DbSet<TaskNotification> TaskNotifications => Set<TaskNotification>();
 
 
 protected override void OnModelCreating(ModelBuilder builder)

@@ -35,12 +35,11 @@ export function PreviewSearch({ label, value, onChange, placeholder }: { label: 
   </div>;
 }
 
-export function SoonPage({ area }: { area: "Library" | "Journal" | "Pictures" | "Tasks" }) {
+export function SoonPage({ area }: { area: "Library" | "Journal" | "Pictures" }) {
   const copy = {
     Library: ["Your library will live here.", "Save videos, posts, articles and things you want to return to without losing them in different apps."],
     Journal: ["A quieter place for your days.", "Journal will give you a private space for daily writing, memories and reflection."],
     Pictures: ["Your visual library will live here.", "Keep the pictures you want to remember, organize and return to."],
-    Tasks: ["A clearer place for what comes next.", "A dedicated view for your tasks is on its way. Tasks on boards remain available."],
   }[area];
   return <div className="wk-soon-page"><div className="wk-soon-content"><p className="wk-future-eyebrow">{area === "Pictures" ? "Library / Pictures" : area}</p><h1>{copy[0]}</h1><p>{copy[1]}</p><span className="wk-soon-label">Coming soon</span></div></div>;
 }

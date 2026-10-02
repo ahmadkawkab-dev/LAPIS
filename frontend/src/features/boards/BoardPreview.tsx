@@ -78,17 +78,15 @@ function connectionPath(source: PreviewNodeLayout, target: PreviewNodeLayout) {
 }
 
 export function BoardPreview({
-  title,
   nodes,
   connections,
 }: {
-  title: string;
   nodes: BoardPreviewNodeDto[];
   connections: BoardPreviewConnectionDto[];
 }) {
   if (nodes.length === 0) {
     return (
-      <div className="wk-board-preview wk-board-preview--empty" aria-label={`${title} is empty`}>
+      <div className="wk-board-preview wk-board-preview--empty" aria-hidden="true">
         <BrandMark />
         <span>A quiet space, ready to grow.</span>
       </div>
@@ -99,12 +97,10 @@ export function BoardPreview({
   const nodesById = new Map(layout.map((node) => [node.id, node]));
 
   return (
-    <div className="wk-board-preview">
+    <div className="wk-board-preview" aria-hidden="true">
       <svg
         viewBox={`0 0 ${viewport.width} ${viewport.height}`}
         preserveAspectRatio="xMidYMid meet"
-        role="img"
-        aria-label={`${title} board preview with ${nodes.length} ${nodes.length === 1 ? "item" : "items"}`}
       >
         <g className="wk-board-preview-edges">
           {connections.map((connection) => {

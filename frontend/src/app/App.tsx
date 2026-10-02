@@ -27,6 +27,11 @@ import { AppShell } from "../components/navigation/AppShell";
 import { Button } from "../components/ui/Button";
 import { Notice } from "../components/ui/Notice";
 import { BoardLanding } from "../features/boards/BoardLanding";
+import { DashboardPage } from "../features/dashboard/DashboardPage";
+import { TasksPage } from "../features/tasks/TasksPage";
+import { TemplatesPage } from "../features/tasks/TemplatesPage";
+import { CalendarPage } from "../features/calendar/CalendarPage";
+import { NotificationsPage } from "../features/notifications/NotificationsPage";
 import { SoonPage } from "../features/future/PreviewUI";
 import { Workspace } from "../features/boards/BoardWorkspace";
 import { realtimeConnection } from "../realtime/connection";
@@ -40,6 +45,8 @@ import { mergeBoardSummary } from "../realtime/reconcile";
 
 const boardFromPath = (path: string) =>
   /^\/boards\/([0-9a-f-]{36})$/i.exec(path)?.[1] ?? null;
+const taskFromPath = (path: string) =>
+  /^\/tasks\/([0-9a-f-]{36})$/i.exec(path)?.[1] ?? null;
 
 export default function App() {
   const [path, setPath] = useState(window.location.pathname),
@@ -75,8 +82,8 @@ export default function App() {
           code = params.get("code"),
           error = params.get("error");
         linked = params.get("linked") === "google";
-        window.history.replaceState(null, "", "/boards");
-        setPath("/boards");
+        window.history.replaceState(null, "", "/home");
+        setPath("/home");
         if (error) {
           callbackError = errorMessage(new AuthApiError(error));
           setStartupError(callbackError);
@@ -168,6 +175,7 @@ export default function App() {
     }
   }
   const boardId = boardFromPath(path);
+  const taskId = taskFromPath(path);
   const accountSection = accountSectionForPath(path);
   useEffect(() => {
     if (path === "/account") {
@@ -188,6 +196,18 @@ export default function App() {
     setBoards((current) => current.filter((item) => item.id !== deletedId));
     if (boardId === deletedId) navigate("/boards");
     notify("Board deleted");
+  }
+  async function createBoard(title: string) {
+    try {
+      const board = await boardApi.create(title);
+      setBoards(await boardApi.list());
+      notify("Board created");
+      navigate(`/boards/${board.id}`);
+    } catch (cause) {
+      if (cause instanceof AuthApiError && cause.code === "board_limit_reached")
+        void loadBoards(false).catch(() => undefined);
+      throw cause;
+    }
   }
   useEffect(() => {
     if (starting || startupBlocked || !session) return;
@@ -244,7 +264,7 @@ export default function App() {
         onSuccess={(value) => {
           setSession(value);
           setStartupError("");
-          navigate("/boards");
+          navigate("/home");
         }}
       />
     );
@@ -254,9 +274,9 @@ export default function App() {
     path === "/register" ||
     path === "/auth/callback"
   ) {
-    window.history.replaceState(null, "", "/boards");
-    queueMicrotask(() => setPath("/boards"));
-    return <div className="wk-startup"><Wordmark /><p role="status">Opening boards…</p></div>;
+    window.history.replaceState(null, "", "/home");
+    queueMicrotask(() => setPath("/home"));
+    return <div className="wk-startup"><Wordmark /><p role="status">Opening your workspace…</p></div>;
   }
   return (
     <AppShell
@@ -264,13 +284,20 @@ export default function App() {
       boards={boards}
       activeBoardId={boardId}
       navigate={navigate}
+      onCreateBoard={createBoard}
       onRenameBoard={renameBoard}
       onDeleteBoard={deleteBoard}
       signOut={() => void signOut(false)}
       signOutEverywhere={() => void signOut(true)}
       notify={notify}
     >
-      {path === "/library" ? <SoonPage area="Library" /> : path === "/library/pictures" ? <SoonPage area="Pictures" /> : path === "/journal" ? <SoonPage area="Journal" /> : path === "/tasks" ? <SoonPage area="Tasks" /> : accountSection ? (
+      {path === "/home" ? <DashboardPage user={session.user} boards={boards} boardsLoading={loading} boardsError={failure}
+        retryBoards={() => void loadBoards().catch(() => undefined)} navigate={navigate} notify={notify} />
+      : path === "/library" ? <SoonPage area="Library" /> : path === "/library/pictures" ? <SoonPage area="Pictures" /> : path === "/journal" ? <SoonPage area="Journal" /> : path === "/tasks/templates" ? <TemplatesPage notify={notify} navigate={navigate} />
+      : path === "/notifications" ? <NotificationsPage navigate={navigate} notify={notify} />
+      : path === "/tasks" || path === "/tasks/quick" || taskId ? <TasksPage key={path} notify={notify} openTaskId={taskId}
+        initialView={path === "/tasks/quick" ? "inbox" : "week"}
+        onCloseLinked={() => navigate("/tasks")} navigate={navigate} /> : path === "/calendar" ? <CalendarPage notify={notify} navigate={navigate} /> : accountSection ? (
         <AccountPanel
           user={session.user}
           section={accountSection}
@@ -294,7 +321,6 @@ export default function App() {
       ) : (
         <BoardLanding
           boards={boards}
-          displayName={session.user.displayName}
           loading={loading}
           failure={failure}
           retry={() => void loadBoards().catch(() => undefined)}
@@ -302,18 +328,7 @@ export default function App() {
           onRenameBoard={renameBoard}
           onDeleteBoard={deleteBoard}
           onBoardLimitReached={() => warn("Board limit reached. You can have a maximum of 5 boards.")}
-          create={async (title) => {
-            try {
-              const board = await boardApi.create(title);
-              setBoards(await boardApi.list());
-              notify("Board created");
-              navigate(`/boards/${board.id}`);
-            } catch (cause) {
-              if (cause instanceof AuthApiError && cause.code === "board_limit_reached")
-                void loadBoards(false).catch(() => undefined);
-              throw cause;
-            }
-          }}
+          create={createBoard}
         />
       )}
       {notice && (

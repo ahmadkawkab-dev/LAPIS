@@ -28,13 +28,6 @@
 }
 .back-button { color: var(--muted-foreground); }
 .divider { height: 1.5rem; background: var(--border); }
-.board-symbol {
-  width: 2rem;
-  height: 2rem;
-  color: var(--primary);
-  background: var(--selected);
-  border-radius: var(--radius-control);
-}
 .permission-label { color: var(--muted-foreground); font-size: var(--text-meta); }
 
 .workspace-state {
@@ -309,7 +302,6 @@
 .panel-task,
 .member-row { min-height: var(--target-size); color: var(--foreground); font-size: var(--text-control); }
 .panel-footer,
-.panel-empty,
 .member-row small { color: var(--muted-foreground); font: var(--text-meta)/1.5 var(--font-ui); }
 .member-row .avatar { width: 2rem; height: 2rem; display: grid; place-items: center; flex: none; color: var(--collaborator-on-color); background: var(--collaborator-color); border: 2px solid var(--surface); border-radius: 50%; font-size: .6875rem; font-weight: 700; }
 .wk-member-copy { display: grid; gap: var(--space-1); overflow-wrap: anywhere; }
@@ -452,8 +444,7 @@
   }
   .board-heading { width: 100%; flex-wrap: wrap; }
   .board-heading .back-button,
-  .board-heading .divider,
-  .board-heading .board-symbol { flex: none; }
+  .board-heading .divider { flex: none; }
   .board-heading h1 {
     min-width: min(8rem, 100%);
     flex: 1 1 8rem;
@@ -499,3 +490,49 @@
 }
 .board-zoom-controls > .wk-button:not(.wk-icon-button) { min-width: 4.5rem; font-variant-numeric: tabular-nums; }
 @media (max-width: 767px) { .workspace { height: calc(100dvh - 8.25rem); } }
+
+/* Figma board chrome. The camera, note geometry, and connection layers remain unchanged. */
+.board-header { min-height: 5.8125rem; padding: .875rem 1.75rem; }
+.board-heading { gap: .75rem; }
+.board-heading h1 { font-size: 1.25rem; font-weight: 700; }
+.board-header .back-button { min-height: 2.25rem; padding: .25rem .5rem; font-size: .75rem; }
+.board-header .divider { height: 1.5rem; }
+.board-actions .wk-button { min-height: 2.25rem; padding: .375rem .75rem; font-size: .75rem; }
+.canvas { background: var(--background); }
+.board-boundary {
+  background-color: var(--canvas);
+  background-image: linear-gradient(to right, color-mix(in srgb, var(--border) 55%, transparent) 1px, transparent 1px),
+    linear-gradient(to bottom, color-mix(in srgb, var(--border) 55%, transparent) 1px, transparent 1px);
+  background-size: 25rem 25rem;
+}
+.canvas-tools {
+  inset-block-start: auto;
+  inset-inline-start: 50%;
+  inset-block-end: 1rem;
+  width: auto;
+  max-width: calc(100% - 8rem);
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: .25rem;
+  overflow-x: auto;
+  padding: .25rem;
+  border-radius: .5rem;
+  transform: translateX(-50%);
+  box-shadow: var(--shadow-panel);
+}
+.canvas-tools .board-tool-button { min-height: 2rem; flex: none; gap: .375rem; padding: .25rem .5rem; border: 0; font-size: .6875rem; white-space: nowrap; }
+.canvas-tools .board-tool-button.active { color: var(--primary); background: var(--selected); }
+.canvas-tools .tool-rule { width: 1px; height: 1.25rem; margin: .25rem; flex: none; }
+.board-zoom-controls { inset-inline-start: 1rem; inset-block-end: 1rem; transform: none; }
+.editor-panel { padding: 1rem; }
+.editor-panel .panel-head h2 { font-size: .875rem; }
+@media (max-width: 767px) {
+  .board-header { min-height: 4.5rem; padding: .625rem .75rem; }
+  .board-heading h1 { font-size: .875rem; }
+  .board-actions .permission-label { display: none; }
+  .canvas-tools { max-width: calc(100% - 1rem); inset-block-end: .5rem; }
+  .canvas-tools .board-tool-button { min-height: 2.5rem; }
+  .canvas-tools .board-tool-button span { display: none; }
+  .board-zoom-controls { inset-block-end: 3.75rem; inset-inline-start: .5rem; }
+}

@@ -267,6 +267,93 @@ namespace Wukna.Migrations
                         });
                 });
 
+            modelBuilder.Entity("Wukna.Features.Calendar.CalendarEvent", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateOnly?>("AllDayEndDateExclusive")
+                        .HasColumnType("date")
+                        .HasColumnName("all_day_end_date_exclusive");
+
+                    b.Property<DateOnly?>("AllDayStartDate")
+                        .HasColumnType("date")
+                        .HasColumnName("all_day_start_date");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("now()");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(4000)
+                        .HasColumnType("character varying(4000)")
+                        .HasColumnName("description");
+
+                    b.Property<DateTimeOffset?>("EndAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("end_at_utc");
+
+                    b.Property<bool>("IsAllDay")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_all_day");
+
+                    b.Property<DateTime?>("LocalEnd")
+                        .HasColumnType("timestamp without time zone")
+                        .HasColumnName("local_end");
+
+                    b.Property<DateTime?>("LocalStart")
+                        .HasColumnType("timestamp without time zone")
+                        .HasColumnName("local_start");
+
+                    b.Property<string>("Location")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("location");
+
+                    b.Property<DateTimeOffset?>("StartAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("start_at_utc");
+
+                    b.Property<string>("TimeZoneId")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("time_zone_id");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("title");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at")
+                        .HasDefaultValueSql("now()");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_calendar_events");
+
+                    b.HasIndex("UserId", "AllDayStartDate", "AllDayEndDateExclusive")
+                        .HasDatabaseName("ix_calendar_events_user_id_all_day_start_date_all_day_end_date");
+
+                    b.HasIndex("UserId", "StartAtUtc", "EndAtUtc")
+                        .HasDatabaseName("ix_calendar_events_user_id_start_at_utc_end_at_utc");
+
+                    b.ToTable("calendar_events", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_calendar_event_schedule", "(is_all_day AND all_day_start_date IS NOT NULL AND all_day_end_date_exclusive IS NOT NULL AND all_day_end_date_exclusive > all_day_start_date AND local_start IS NULL AND local_end IS NULL AND time_zone_id IS NULL AND start_at_utc IS NULL AND end_at_utc IS NULL) OR (NOT is_all_day AND all_day_start_date IS NULL AND all_day_end_date_exclusive IS NULL AND local_start IS NOT NULL AND local_end IS NOT NULL AND local_end > local_start AND time_zone_id IS NOT NULL AND start_at_utc IS NOT NULL AND end_at_utc IS NOT NULL AND end_at_utc > start_at_utc)");
+                        });
+                });
+
             modelBuilder.Entity("Wukna.Features.NoteConnection.NoteConnection", b =>
                 {
                     b.Property<Guid>("Id")
@@ -436,6 +523,267 @@ namespace Wukna.Migrations
 
                             t.HasCheckConstraint("ck_note_position_matches_kind", "(\"kind\" = 2 AND \"position_x\" IS NULL AND \"position_y\" IS NULL) OR (\"kind\" IN (0, 1) AND \"position_x\" IS NOT NULL AND \"position_y\" IS NOT NULL)");
                         });
+                });
+
+            modelBuilder.Entity("Wukna.Features.Notifications.TaskNotification", b =>
+                {
+                    b.Property<Guid>("TaskId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("task_id");
+
+                    b.Property<DateTimeOffset?>("DismissedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("dismissed_at");
+
+                    b.Property<DateTimeOffset>("IssuedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("issued_at");
+
+                    b.Property<DateTimeOffset?>("ReadAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("read_at");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.HasKey("TaskId")
+                        .HasName("pk_task_notifications");
+
+                    b.HasIndex("UserId", "IssuedAt")
+                        .HasDatabaseName("ix_task_notifications_user_id_issued_at");
+
+                    b.ToTable("task_notifications", (string)null);
+                });
+
+            modelBuilder.Entity("Wukna.Features.Notifications.TaskReminder", b =>
+                {
+                    b.Property<Guid>("TaskId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("task_id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<DateTimeOffset?>("DeliveredAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("delivered_at");
+
+                    b.Property<DateTimeOffset>("DueAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("due_at_utc");
+
+                    b.Property<int>("MinutesBefore")
+                        .HasColumnType("integer")
+                        .HasColumnName("minutes_before");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.HasKey("TaskId")
+                        .HasName("pk_task_reminders");
+
+                    b.HasIndex("DeliveredAt", "DueAtUtc")
+                        .HasDatabaseName("ix_task_reminders_delivered_at_due_at_utc");
+
+                    b.HasIndex("UserId", "DueAtUtc")
+                        .HasDatabaseName("ix_task_reminders_user_id_due_at_utc");
+
+                    b.ToTable("task_reminders", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_task_reminder_minutes", "minutes_before BETWEEN 0 AND 10080");
+                        });
+                });
+
+            modelBuilder.Entity("Wukna.Features.Tasks.PersonalTask", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset?>("CompletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("completed_at");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("now()");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(4000)
+                        .HasColumnType("character varying(4000)")
+                        .HasColumnName("description");
+
+                    b.Property<Guid?>("ListId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("list_id");
+
+                    b.Property<DateTimeOffset?>("PlannedAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("planned_at_utc");
+
+                    b.Property<DateOnly?>("PlannedDate")
+                        .HasColumnType("date")
+                        .HasColumnName("planned_date");
+
+                    b.Property<TimeOnly?>("PlannedTime")
+                        .HasColumnType("time without time zone")
+                        .HasColumnName("planned_time");
+
+                    b.Property<string>("TimeZoneId")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("time_zone_id");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("title");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at")
+                        .HasDefaultValueSql("now()");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_personal_tasks");
+
+                    b.HasIndex("ListId")
+                        .HasDatabaseName("ix_personal_tasks_list_id");
+
+                    b.HasIndex("UserId", "ListId")
+                        .HasDatabaseName("ix_personal_tasks_user_id_list_id");
+
+                    b.HasIndex("UserId", "CompletedAt", "PlannedDate")
+                        .HasDatabaseName("ix_personal_tasks_user_id_completed_at_planned_date");
+
+                    b.ToTable("personal_tasks", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_personal_task_schedule", "(planned_time IS NULL AND time_zone_id IS NULL AND planned_at_utc IS NULL) OR (planned_date IS NOT NULL AND planned_time IS NOT NULL AND time_zone_id IS NOT NULL AND planned_at_utc IS NOT NULL)");
+                        });
+                });
+
+            modelBuilder.Entity("Wukna.Features.Tasks.PersonalTaskList", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("now()");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)")
+                        .HasColumnName("name");
+
+                    b.Property<string>("NormalizedName")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)")
+                        .HasColumnName("normalized_name");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at")
+                        .HasDefaultValueSql("now()");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_personal_task_lists");
+
+                    b.HasIndex("UserId", "NormalizedName")
+                        .IsUnique()
+                        .HasDatabaseName("ux_personal_task_lists_user_name");
+
+                    b.ToTable("personal_task_lists", (string)null);
+                });
+
+            modelBuilder.Entity("Wukna.Features.Tasks.PlanningSettings", b =>
+                {
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.Property<string>("TimeZoneId")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("time_zone_id");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at")
+                        .HasDefaultValueSql("now()");
+
+                    b.HasKey("UserId")
+                        .HasName("pk_planning_settings");
+
+                    b.ToTable("planning_settings", (string)null);
+                });
+
+            modelBuilder.Entity("Wukna.Features.Tasks.TaskTemplate", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("ItemsJson")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("items_json");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)")
+                        .HasColumnName("name");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_task_templates");
+
+                    b.HasIndex("UserId")
+                        .HasDatabaseName("ix_task_templates_user_id");
+
+                    b.ToTable("task_templates", (string)null);
                 });
 
             modelBuilder.Entity("Wukna.Features.Users.User", b =>
@@ -632,6 +980,18 @@ namespace Wukna.Migrations
                     b.Navigation("User");
                 });
 
+            modelBuilder.Entity("Wukna.Features.Calendar.CalendarEvent", b =>
+                {
+                    b.HasOne("Wukna.Features.Users.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_calendar_events_users_user_id");
+
+                    b.Navigation("User");
+                });
+
             modelBuilder.Entity("Wukna.Features.NoteConnection.NoteConnection", b =>
                 {
                     b.HasOne("Wukna.Features.Notes.Note", "SourceNote")
@@ -674,6 +1034,86 @@ namespace Wukna.Migrations
                     b.Navigation("Board");
 
                     b.Navigation("ParentNote");
+                });
+
+            modelBuilder.Entity("Wukna.Features.Notifications.TaskNotification", b =>
+                {
+                    b.HasOne("Wukna.Features.Tasks.PersonalTask", "Task")
+                        .WithOne()
+                        .HasForeignKey("Wukna.Features.Notifications.TaskNotification", "TaskId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_task_notifications_personal_tasks_task_id");
+
+                    b.Navigation("Task");
+                });
+
+            modelBuilder.Entity("Wukna.Features.Notifications.TaskReminder", b =>
+                {
+                    b.HasOne("Wukna.Features.Tasks.PersonalTask", "Task")
+                        .WithOne()
+                        .HasForeignKey("Wukna.Features.Notifications.TaskReminder", "TaskId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_task_reminders_personal_tasks_task_id");
+
+                    b.Navigation("Task");
+                });
+
+            modelBuilder.Entity("Wukna.Features.Tasks.PersonalTask", b =>
+                {
+                    b.HasOne("Wukna.Features.Tasks.PersonalTaskList", "List")
+                        .WithMany()
+                        .HasForeignKey("ListId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .HasConstraintName("fk_personal_tasks_personal_task_lists_list_id");
+
+                    b.HasOne("Wukna.Features.Users.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_personal_tasks_users_user_id");
+
+                    b.Navigation("List");
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("Wukna.Features.Tasks.PersonalTaskList", b =>
+                {
+                    b.HasOne("Wukna.Features.Users.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_personal_task_lists_users_user_id");
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("Wukna.Features.Tasks.PlanningSettings", b =>
+                {
+                    b.HasOne("Wukna.Features.Users.User", "User")
+                        .WithOne()
+                        .HasForeignKey("Wukna.Features.Tasks.PlanningSettings", "UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_planning_settings_asp_net_users_user_id");
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("Wukna.Features.Tasks.TaskTemplate", b =>
+                {
+                    b.HasOne("Wukna.Features.Users.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_task_templates_users_user_id");
+
+                    b.Navigation("User");
                 });
 
             modelBuilder.Entity("Wukna.Features.Board.Board", b =>

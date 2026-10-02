@@ -9,6 +9,7 @@ export function AppShell({
   boards,
   activeBoardId,
   navigate,
+  onCreateBoard,
   onRenameBoard,
   onDeleteBoard,
   signOut,
@@ -20,6 +21,7 @@ export function AppShell({
   boards: BoardListItemDto[];
   activeBoardId: string | null;
   navigate: (path: string) => void;
+  onCreateBoard: (title: string) => Promise<void>;
   onRenameBoard: (id: string, title: string) => Promise<void>;
   onDeleteBoard: (id: string) => Promise<void>;
   signOut: () => void;
@@ -40,15 +42,16 @@ export function AppShell({
         collapsed={collapsed}
         onToggle={() => setCollapsed((value) => !value)}
         navigate={navigate}
+        onCreateBoard={onCreateBoard}
         onRenameBoard={onRenameBoard}
         onDeleteBoard={onDeleteBoard}
         onOpenAccount={() => navigate("/account/profile")}
       />
-      <MobileHeader user={user} onBoards={openBoards} onOpenAccount={() => navigate("/account/profile")} />
+      <MobileHeader user={user} onHome={() => navigate("/home")} onOpenAccount={() => navigate("/account/profile")} />
       <main className="wk-shell-main" id="wk-main-content">
         <div className="wk-feature-stage">{children}</div>
       </main>
-      <MobileNav onBoards={openBoards} onOpenAccount={() => navigate("/account/profile")} navigate={navigate} />
+      <MobileNav onBoards={openBoards} navigate={navigate} />
     </div>
   );
 }
