@@ -6,8 +6,8 @@ export default defineConfig({
   server: {
     // OAuth redirects must use the browser-facing host registered with Google.
     proxy: {
-      '/api': { target: 'http://localhost:8080', changeOrigin: false },
-      '/hubs': { target: 'http://localhost:8080', changeOrigin: false, ws: true },
+      '/api': { target: process.env.VITE_API_PROXY_TARGET || 'http://localhost:8080', changeOrigin: false },
+      '/hubs': { target: process.env.VITE_API_PROXY_TARGET || 'http://localhost:8080', changeOrigin: false, ws: true },
     },
   },
 })

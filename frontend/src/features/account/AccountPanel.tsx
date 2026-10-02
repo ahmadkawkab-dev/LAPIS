@@ -10,7 +10,7 @@ import {
 import { errorMessage, profileApi, type ProfileDto } from "../../api";
 import { Button } from "../../components/ui/Button";
 import { Field } from "../../components/ui/Field";
-import { Avatar, identityLabel } from "../../components/ui/Avatar";
+import { Avatar } from "../../components/ui/Avatar";
 import { ThemeControl } from "../../components/ui/ThemeControl";
 
 export function AccountPanel({
@@ -39,6 +39,7 @@ export function AccountPanel({
   const [displayName, setDisplayName] = useState(user.displayName ?? "");
   const [profileBusy, setProfileBusy] = useState(false);
   const [profileError, setProfileError] = useState("");
+  const [profileLoadFailed, setProfileLoadFailed] = useState(false);
   const [preview, setPreview] = useState<string | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
 
@@ -62,6 +63,7 @@ export function AccountPanel({
   const loadProfile = useCallback(async () => {
     setProfileLoading(true);
     setProfileError("");
+    setProfileLoadFailed(false);
     try {
       const value = await profileApi.get();
       const normalized: ProfileDto = {
@@ -78,6 +80,7 @@ export function AccountPanel({
       onProfileUpdated(normalized);
     } catch (cause) {
       setProfileError(errorMessage(cause));
+      setProfileLoadFailed(true);
     } finally {
       setProfileLoading(false);
     }
@@ -93,6 +96,7 @@ export function AccountPanel({
     event.preventDefault();
     setProfileBusy(true);
     setProfileError("");
+    setProfileLoadFailed(false);
     try {
       const response = await profileApi.update(username, displayName);
       const updated: ProfileDto = {
@@ -115,6 +119,7 @@ export function AccountPanel({
   async function selectImage(file?: File) {
     if (!file) return;
     setProfileError("");
+    setProfileLoadFailed(false);
     if (!file.type.startsWith("image/")) { setProfileError("Choose an image file."); return; }
     if (file.size > 5 * 1024 * 1024) { setProfileError("Profile images must be 5 MB or smaller."); return; }
     const objectUrl = URL.createObjectURL(file);
@@ -134,6 +139,7 @@ export function AccountPanel({
   async function removePhoto() {
     setProfileBusy(true);
     setProfileError("");
+    setProfileLoadFailed(false);
     try {
       const response = await profileApi.removeAvatar();
       const updated = { ...(profile ?? await profileApi.get()), ...response };
@@ -171,37 +177,30 @@ export function AccountPanel({
   return (
     <div className="wk-account-page">
       <header className="wk-account-page-heading">
-        <div>
-          <h1>Account</h1>
-          <p>Manage your profile and preferences.</p>
-        </div>
-        <Button variant="quiet" onClick={() => navigate("/boards")}>Back to boards</Button>
+        <div><span className="wk-account-eyebrow">Account</span><h1>Profile & settings</h1>
+          <p>Manage how Wukna works for you.</p></div>
+        {section === "profile" && <Button type="submit" form="wk-profile-form" disabled={profileLoading || profileBusy || !username.trim()}>
+          {profileBusy ? "Saving…" : "Save changes"}</Button>}
       </header>
+      <div className="wk-account-layout">
       <nav className="wk-account-tabs" aria-label="Account sections">
         <button type="button" aria-current={section === "profile" ? "page" : undefined}
-          onClick={() => navigate("/account/profile")}>Edit profile</button>
+          onClick={() => navigate("/account/profile")}>Profile</button>
         <button type="button" aria-current={section === "preferences" ? "page" : undefined}
-          onClick={() => navigate("/account/preferences")}>Preferences</button>
+          onClick={() => navigate("/account/preferences")}>Preferences & security</button>
       </nav>
-      {profileError && <div className="wk-account-error" role="alert">
-        <p>Profile details could not be loaded or saved. {profileError}</p>
-        <Button variant="secondary" onClick={() => void loadProfile()}><RefreshCw size={16} aria-hidden="true" /> Retry</Button>
+      <div className="wk-account-main">
+      {section === "profile" && profileError && <div className="wk-account-error" role="alert">
+        <p>{profileError}</p>
+        {profileLoadFailed && <Button variant="secondary" onClick={() => void loadProfile()}><RefreshCw size={16} aria-hidden="true" /> Retry loading profile</Button>}
       </div>}
       <div className="wk-account-panel">
       {section === "profile" ? <>
-      <div className="wk-account-identity">
-        <Avatar identity={{ ...user, displayName: profile?.displayName, username: profile?.username, profileImageUrl: preview ?? profile?.profileImageUrl }} size="large" />
-        <div>
-          <span className="wk-account-label">Signed in as</span>
-          <strong>{identityLabel({ displayName: profile?.displayName ?? user.displayName, username: profile?.username ?? username, email: profile?.email ?? user.email })}</strong>
-        </div>
-      </div>
-
       {profileLoading ? <div className="wk-profile-loading" role="status" aria-label="Loading profile">
         <span /><span /><span />
-      </div> : <form className="wk-profile-form" onSubmit={(event) => void saveProfile(event)}>
+      </div> : <form id="wk-profile-form" className="wk-profile-form" onSubmit={(event) => void saveProfile(event)}>
         <section className="wk-account-section" aria-labelledby="wk-profile-heading">
-          <h3 id="wk-profile-heading">Profile</h3>
+          <h2 id="wk-profile-heading">Your details</h2>
           <div className="wk-profile-photo-row">
             <Avatar identity={{ ...user, displayName, username, profileImageUrl: preview ?? profile?.profileImageUrl }} size="large" />
             <div className="wk-profile-photo-actions">
@@ -221,21 +220,18 @@ export function AccountPanel({
             hint="3–30 letters, numbers, periods, underscores, or hyphens."
             value={username} onChange={(event) => setUsername(event.target.value)} disabled={profileBusy} />
           <Field label="Email" name="email" type="email" value={profile?.email ?? user.email} disabled readOnly />
-          <div className="wk-dialog-actions"><Button type="submit" disabled={profileBusy || !username.trim()}>
-            {profileBusy ? "Saving…" : "Save changes"}
-          </Button></div>
         </section>
       </form>
       }</> : <>
       <section className="wk-account-section" aria-labelledby="wk-appearance-heading">
-        <h3 id="wk-appearance-heading">Appearance</h3>
+        <h2 id="wk-appearance-heading">Appearance</h2>
         <ThemeControl />
       </section>
 
       <section className="wk-account-section" aria-labelledby="wk-sign-in-heading">
         <div className="wk-account-section-heading">
           <div>
-            <h3 id="wk-sign-in-heading">Sign-in methods</h3>
+            <h2 id="wk-sign-in-heading">Sign-in methods</h2>
             <p>Choose how you can return to Wukna.</p>
           </div>
           {loading && <span className="wk-account-status" role="status">Checking…</span>}
@@ -273,7 +269,7 @@ export function AccountPanel({
 
       <section className="wk-account-section wk-account-session" aria-labelledby="wk-session-heading">
         <div>
-          <h3 id="wk-session-heading">Session</h3>
+          <h2 id="wk-session-heading">Session</h2>
           <p>Sign out here, or close every active Wukna session.</p>
         </div>
         <div className="wk-account-actions">
@@ -286,6 +282,8 @@ export function AccountPanel({
         </div>
       </section>
       </>}
+      </div>
+      </div>
       </div>
       <nav className="wk-account-legal" aria-label="Legal links">
         <a href="/privacy">Privacy policy</a>

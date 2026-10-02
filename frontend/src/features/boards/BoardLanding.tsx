@@ -1,10 +1,8 @@
-import { useRef, useState, type FormEvent } from "react";
+import { useId, useRef, useState, type FormEvent, type MouseEvent } from "react";
 import {
-  ArrowUpRight,
   CheckCircle2,
   Plus,
   Search,
-  UsersRound,
 } from "lucide-react";
 import type { BoardListItemDto } from "../../api";
 import { AuthApiError, errorMessage } from "../../api";
@@ -60,8 +58,11 @@ function BoardCard({
   onDeleteBoard: (id: string) => Promise<void>;
 }) {
   const [actionsOpen, setActionsOpen] = useState(false);
+  const titleId = useId();
+  const detailsId = useId();
+  const roleId = useId();
   const isOwner = board.role === 1;
-  const role = isOwner ? "Owner" : board.canEdit ? "Editor" : "Viewer";
+  const role = board.canEdit ? "Editor" : "Viewer";
   const counts = [
     plural(board.noteCount, "note"),
     plural(board.taskListCount, "task list"),
@@ -69,22 +70,25 @@ function BoardCard({
 
   return (
     <div className="wk-board-card-wrap">
-    <button
-      type="button"
+    <a
+      href={`/boards/${board.id}`}
       className="wk-board-card"
-      onClick={() => navigate(`/boards/${board.id}`)}
-      aria-label={`Open ${board.title}`}
+      aria-labelledby={titleId}
+      aria-describedby={isOwner ? detailsId : `${detailsId} ${roleId}`}
+      onClick={(event: MouseEvent<HTMLAnchorElement>) => {
+        if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+        event.preventDefault();
+        navigate(`/boards/${board.id}`);
+      }}
     >
       <BoardPreview
-        title={board.title}
         nodes={board.previewNodes}
         connections={board.previewConnections}
       />
       <div className="wk-board-card-heading">
-        <h3>{board.title}</h3>
-        <ArrowUpRight size={18} aria-hidden="true" />
+        <h3 id={titleId}>{board.title}</h3>
       </div>
-      <div className="wk-board-card-counts">
+      <div className="wk-board-card-counts" id={detailsId}>
         <span>{counts.join(" · ")}</span>
         {board.taskItemCount > 0 ? (
           <span className="wk-board-card-progress">
@@ -94,20 +98,14 @@ function BoardCard({
         ) : null}
       </div>
       <div className="wk-board-card-footer">
-        <span className="wk-board-role">
-          {role}{isOwner ? " · Your board" : " · Shared with you"}
-        </span>
+        {!isOwner && <span className="wk-board-role" id={roleId}>{role}</span>}
         <span className="wk-board-card-activity">
-          <span title={plural(board.memberCount, "member")}>
-            <UsersRound size={14} aria-hidden="true" />
-            {board.memberCount}
-          </span>
           <time dateTime={board.updatedAt} title={new Date(board.updatedAt).toLocaleString()}>
             Updated {relativeTime(board.updatedAt)}
           </time>
         </span>
       </div>
-    </button>
+    </a>
     {isOwner && (
       <div className="wk-board-card-actions">
         <Button variant="quiet" onClick={() => setActionsOpen(true)}
@@ -160,7 +158,6 @@ function SkeletonCards() {
 
 export function BoardLanding({
   boards,
-  displayName,
   loading,
   failure,
   retry,
@@ -171,7 +168,6 @@ export function BoardLanding({
   onDeleteBoard,
 }: {
   boards: BoardListItemDto[];
-  displayName: string | null;
   loading: boolean;
   failure: string;
   retry: () => void;
@@ -187,7 +183,6 @@ export function BoardLanding({
   const [createError, setCreateError] = useState("");
   const [busy, setBusy] = useState(false);
   const lastLimitWarningAt = useRef(0);
-  const greetingName = displayName?.trim();
   const normalizedQuery = query.trim().toLocaleLowerCase();
   const shown = normalizedQuery
     ? boards.filter((board) =>
@@ -246,9 +241,7 @@ export function BoardLanding({
       <div className="wk-board-landing-inner">
         <header className="wk-board-landing-header">
           <div>
-            <p className="wk-eyebrow">Your Wukna</p>
-            <h1>Good to see you{greetingName ? `, ${greetingName}` : ""}.</h1>
-            <p>Your space is taking shape.</p>
+            <h1>Boards</h1>
           </div>
           <Button onClick={openCreateForm} aria-disabled={atBoardLimit}>
             <Plus size={18} aria-hidden="true" />
@@ -299,7 +292,7 @@ export function BoardLanding({
 
         {loading ? (
           <div role="status" aria-live="polite">
-            <span className="wk-visually-hidden">Loading boards…</span>
+            <span className="wk-sr-only">Loading boards…</span>
             <SkeletonCards />
           </div>
         ) : failure ? (
@@ -323,7 +316,6 @@ export function BoardLanding({
                   <h2 id="owned-boards-heading">Your boards</h2>
                   <span aria-label={`${owned.length} ${owned.length === 1 ? "board" : "boards"}`}>{owned.length}</span>
                 </div>
-                <p>Boards you created and guided.</p>
               </div>
               {owned.length > 0 ? (
                 <BoardGrid boards={owned} navigate={navigate}
@@ -347,7 +339,6 @@ export function BoardLanding({
                   <h2 id="shared-boards-heading">Shared with you</h2>
                   <span aria-label={`${shared.length} shared ${shared.length === 1 ? "board" : "boards"}`}>{shared.length}</span>
                 </div>
-                <p>Boards where ideas are growing together.</p>
               </div>
               {shared.length > 0 ? (
                 <BoardGrid boards={shared} navigate={navigate}

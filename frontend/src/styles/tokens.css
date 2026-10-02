@@ -138,6 +138,64 @@
   --shadow-panel: 0 12px 40px #00000030;
 }
 
+/* Figma Product Design System. Scoped while signed-in surfaces migrate. */
+.wk-app-shell {
+  --background: #f6f6f3;
+  --canvas: #f6f6f3;
+  --surface: #ffffff;
+  --foreground: #171815;
+  --muted-foreground: #63665f;
+  --primary: #486653;
+  --primary-foreground: #ffffff;
+  --secondary: #f1f1ed;
+  --selected: #e3ece5;
+  --border: #dedfd9;
+  --control-border: #c7c9c1;
+  --focus: #486653;
+  --destructive: #a33f3a;
+  --success: #486653;
+  --status-info: #315f8d;
+  --status-info-surface: #e6eef5;
+  --status-success-surface: #e3ece5;
+  --status-danger-surface: #f8e9e7;
+  --board-card-alt-surface: #eee9f4;
+  --selected-foreground: #274331;
+  --hover: #f1f1ed;
+  --radius-control: .375rem;
+  --radius-card: .625rem;
+  --radius-panel: .625rem;
+  --shadow-card: 0 1px 2px #1718150a;
+  --shadow-panel: 0 12px 32px #17181512;
+  --text-meta: .75rem;
+  --text-control: .8125rem;
+  --text-body: .875rem;
+  --leading-body: 1.45;
+}
+
+:root[data-theme='dark'] .wk-app-shell {
+  --background: #171b18;
+  --canvas: #171b18;
+  --surface: #202620;
+  --foreground: #f5f6f2;
+  --muted-foreground: #b2bbb1;
+  --primary: #a5c0aa;
+  --primary-foreground: #172019;
+  --secondary: #2b332c;
+  --selected: #324739;
+  --border: #3e4b40;
+  --control-border: #718174;
+  --focus: #b8d8bd;
+  --destructive: #f1a7a2;
+  --success: #a5c0aa;
+  --status-info: #9cc8f0;
+  --status-info-surface: #223544;
+  --status-success-surface: #2a3d30;
+  --status-danger-surface: #432d2a;
+  --board-card-alt-surface: #352c3d;
+  --selected-foreground: #f5f6f2;
+  --hover: #2b332c;
+}
+
 @media (prefers-reduced-motion: reduce) {
   :root { --motion-fast: 0ms; --motion-panel: 0ms; --motion-signal: 0ms; }
 }

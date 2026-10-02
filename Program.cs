@@ -6,6 +6,9 @@ using Wukna.Features.NoteConnection;
 using Wukna.Features.Realtime;
 using Wukna.Features.Users;
 using Wukna.Features.Profile;
+using Wukna.Features.Tasks;
+using Wukna.Features.Calendar;
+using Wukna.Features.Notifications;
 using Wukna.Shared.Data.AppDbContext;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Google;
@@ -71,6 +74,7 @@ builder.Services.AddScoped<ExternalLoginGrantService>();
 builder.Services.AddScoped<GoogleLinkIntentService>();
 builder.Services.AddScoped<GoogleAccountLinkService>();
 builder.Services.AddHostedService<ExternalLoginGrantCleanupService>();
+builder.Services.AddHostedService<TaskReminderWorker>();
 // Keep the pre-rename cryptographic application name so existing protected auth payloads
 // remain readable across deployment of the Wukna identifiers.
 var dataProtection = builder.Services.AddDataProtection().SetApplicationName("Lapis");
@@ -231,6 +235,12 @@ app.MapBoardEndpoints();
 app.MapNoteEndpoints();
 app.MapNoteConnectionEndpoints();
 app.MapProfileEndpoints();
+app.MapPersonalTaskEndpoints();
+app.MapTaskPlanningEndpoints();
+app.MapTaskTemplateEndpoints();
+app.MapCalendarEventEndpoints();
+app.MapCalendarRangeEndpoints();
+app.MapTaskReminderEndpoints();
 app.MapHub<BoardHub>(BoardHub.Path, options =>
     options.CloseOnAuthenticationExpiration = true).RequireAuthorization();
 

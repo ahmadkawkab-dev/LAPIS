@@ -81,3 +81,5 @@ Desktop.ini
 *.md
 !/README.md
 !/docs/session-restoration.md
+!/docs/UI_UX_DESIGN_SYSTEM.md
+!/docs/UI_UX_AUDIT.md
