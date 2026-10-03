@@ -70,6 +70,7 @@ postgres-data/
 # Operating-system metadata and temporary files
 /App_Data/profile-images/
 /App_Data/data-protection-keys/
+/App_Data/chat-attachments/
 .DS_Store
 Thumbs.db
 Desktop.ini
@@ -83,3 +84,4 @@ Desktop.ini
 !/docs/session-restoration.md
 !/docs/UI_UX_DESIGN_SYSTEM.md
 !/docs/UI_UX_AUDIT.md
+!/docs/BOARD_CHAT.md

@@ -4,9 +4,11 @@ using System.IdentityModel.Tokens.Jwt;
 using Wukna.Features.Realtime;
 using Wukna.Features.Notes;
 using Wukna.Features.Users;
+using Wukna.Features.Chat;
 using Wukna.Shared.Data.AppDbContext;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 
 public sealed record CreateBoardRequest(string Title);
 public sealed record RenameBoardRequest(string Title);
@@ -134,7 +136,7 @@ public static class BoardEndpoints
 
         group.MapDelete("/{boardId:guid}", async (
             Guid boardId, HttpContext context, WuknaDbContext db,
-            BoardRealtimeDispatcher realtime, CancellationToken cancellationToken) =>
+            BoardRealtimeDispatcher realtime, ChatRevocation chatRevocation, TimeProvider clock, CancellationToken cancellationToken) =>
         {
             if (!TryGetUserId(context, out var userId)) return Results.Unauthorized();
             if (!await IsOwnerAsync(db, boardId, userId, cancellationToken)) return Results.NotFound();
@@ -146,6 +148,13 @@ public static class BoardEndpoints
 
             // Checklist parents use a restrictive FK, so remove dependent rows in order.
             await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
+            // Serialize deletion with bounded upload/promotion before inspecting blob keys.
+            var lockedBoards = await db.Boards.FromSqlInterpolated($"SELECT * FROM boards WHERE id = {boardId} FOR UPDATE")
+                .AsNoTracking().ToListAsync(cancellationToken);
+            if (lockedBoards.Count == 0 || !await IsOwnerAsync(db, boardId, userId, cancellationToken)) return Results.NotFound();
+            await ChatAttachmentJobs.QueueBoardDeletionAsync(db, boardId, clock.GetUtcNow(), cancellationToken);
+            var chatRevoked = chatRevocation.Record(boardId);
+            await db.SaveChangesAsync(cancellationToken);
             await db.NoteConnections.Where(connection => connection.BoardId == boardId)
                 .ExecuteDeleteAsync(cancellationToken);
             await db.Notes.Where(note => note.BoardId == boardId && note.Kind == NoteKind.ChecklistItem)
@@ -156,6 +165,7 @@ public static class BoardEndpoints
                 .ExecuteDeleteAsync(cancellationToken);
             await transaction.CommitAsync(cancellationToken);
 
+            await chatRevocation.NotifyAsync(chatRevoked);
             await realtime.BoardDeletedAsync(boardId, memberIds);
             return Results.NoContent();
         });
@@ -187,6 +197,7 @@ public static class BoardEndpoints
             UserManager<User> userManager,
             BoardActivity activity,
             BoardRealtimeDispatcher realtime,
+            IOptionsMonitor<BoardOptions> options,
             CancellationToken cancellationToken) =>
         {
             if (!TryGetUserId(context, out var userId)) return Results.Unauthorized();
@@ -202,6 +213,11 @@ public static class BoardEndpoints
             var guest = await userManager.FindByEmailAsync(request.Email.Trim());
             if (guest is null) return Results.NotFound();
 
+            await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
+            if (!await BoardMembershipLocks.LockBoardAsync(db, boardId, cancellationToken)) return Results.NotFound();
+            if ((await ChatAccess.LockMembershipAsync(db, boardId, userId, cancellationToken))?.Role != BoardRole.Owner)
+                return Results.NotFound();
+
             var membership = await db.BoardMemberships.FindAsync(
                 [boardId, guest.Id], cancellationToken);
             if (membership?.Role == BoardRole.Owner)
@@ -211,6 +227,11 @@ public static class BoardEndpoints
             var downgraded = membership?.CanEdit == true && !request.CanEdit;
             if (membership is null)
             {
+                var maxGuests = options.CurrentValue.MaxGuests;
+                var guestCount = await db.BoardMemberships.CountAsync(member =>
+                    member.BoardId == boardId && member.Role == BoardRole.Guest, cancellationToken);
+                if (guestCount >= maxGuests)
+                    return Results.Conflict(new { error = "board_guest_limit_reached", maxGuests, guestCount });
                 db.BoardMemberships.Add(new BoardMembership
                 {
                     BoardId = boardId,
@@ -228,10 +249,25 @@ public static class BoardEndpoints
             {
                 activity.MarkUpdated(db, boardId);
                 await db.SaveChangesAsync(cancellationToken);
+                await transaction.CommitAsync(cancellationToken);
                 await realtime.MembersChangedAsync(boardId,
                     downgradedUserId: downgraded ? guest.Id : null);
             }
+            else await transaction.CommitAsync(cancellationToken);
             return Results.NoContent();
+        }).RequireRateLimiting("board-membership-write");
+
+        group.MapGet("/{boardId:guid}/guest-limit", async (Guid boardId, HttpContext context,
+            WuknaDbContext db, IOptionsMonitor<BoardOptions> options, CancellationToken ct) =>
+        {
+            if (!TryGetUserId(context, out var userId)) return Results.Unauthorized();
+            await using var transaction = await db.Database.BeginTransactionAsync(ct);
+            if (await ChatAccess.LockMembershipAsync(db, boardId, userId, ct) is null) return Results.NotFound();
+            var guestCount = await db.BoardMemberships.CountAsync(member =>
+                member.BoardId == boardId && member.Role == BoardRole.Guest, ct);
+            context.Response.Headers.CacheControl = "no-store";
+            await transaction.CommitAsync(ct);
+            return Results.Ok(new { maxGuests = options.CurrentValue.MaxGuests, guestCount });
         });
 
         group.MapPatch("/{boardId:guid}/members/{memberId:guid}", async (
@@ -247,6 +283,11 @@ public static class BoardEndpoints
             if (callerRole is null) return Results.NotFound();
             if (callerRole != BoardRole.Owner) return Results.Forbid();
 
+            await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
+            if (!await BoardMembershipLocks.LockBoardAsync(db, boardId, cancellationToken)) return Results.NotFound();
+            if ((await ChatAccess.LockMembershipAsync(db, boardId, userId, cancellationToken))?.Role != BoardRole.Owner)
+                return Results.NotFound();
+
             var membership = await db.BoardMemberships.FindAsync([boardId, memberId], cancellationToken);
             if (membership is null) return Results.NotFound();
             if (membership.Role == BoardRole.Owner)
@@ -259,6 +300,7 @@ public static class BoardEndpoints
             try
             {
                 await db.SaveChangesAsync(cancellationToken);
+                await transaction.CommitAsync(cancellationToken);
             }
             catch (DbUpdateConcurrencyException)
             {
@@ -266,7 +308,7 @@ public static class BoardEndpoints
             }
             await realtime.MembersChangedAsync(boardId, downgradedUserId: downgraded ? memberId : null);
             return Results.NoContent();
-        });
+        }).RequireRateLimiting("board-membership-write");
 
         group.MapDelete("/{boardId:guid}/guests/{guestId:guid}", async (
             Guid boardId,
@@ -275,6 +317,7 @@ public static class BoardEndpoints
             WuknaDbContext db,
             BoardActivity activity,
             BoardRealtimeDispatcher realtime,
+            ChatRevocation chatRevocation,
             CancellationToken cancellationToken) =>
         {
             if (!TryGetUserId(context, out var userId)) return Results.Unauthorized();
@@ -285,25 +328,40 @@ public static class BoardEndpoints
             if (callerRole is null) return Results.NotFound();
             if (callerRole != BoardRole.Owner) return Results.Forbid();
 
-            var membership = await db.BoardMemberships.FindAsync(
-                [boardId, guestId], cancellationToken);
+            await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
+            if (!await BoardMembershipLocks.LockBoardAsync(db, boardId, cancellationToken)) return Results.NotFound();
+            if ((await ChatAccess.LockMembershipAsync(db, boardId, userId, cancellationToken))?.Role != BoardRole.Owner)
+                return Results.NotFound();
+            // Serialize with chat joins/sends before reading the membership instance
+            // that the durable revocation must invalidate.
+            var memberships = await db.BoardMemberships.FromSqlInterpolated($"""
+                SELECT * FROM board_memberships
+                WHERE board_id = {boardId} AND user_id = {guestId} FOR UPDATE
+                """).ToListAsync(cancellationToken);
+            var membership = memberships.SingleOrDefault();
             if (membership is null) return Results.NotFound();
             if (membership.Role == BoardRole.Owner)
                 return Results.Conflict(new { error = "The board owner cannot be removed." });
 
+            var instance = await db.BoardMemberChatStates.AsNoTracking()
+                .Where(state => state.BoardId == boardId && state.UserId == guestId)
+                .Select(state => (Guid?)state.MembershipInstanceId).SingleOrDefaultAsync(cancellationToken);
+            var chatRevoked = instance is null ? null : chatRevocation.Record(boardId, guestId, instance);
             db.BoardMemberships.Remove(membership);
             activity.MarkUpdated(db, boardId);
             try
             {
                 await db.SaveChangesAsync(cancellationToken);
+                await transaction.CommitAsync(cancellationToken);
             }
             catch (DbUpdateConcurrencyException)
             {
                 return Results.Conflict(new { error = "Membership changed. Reload and try again." });
             }
+            if (chatRevoked is not null) await chatRevocation.NotifyAsync(chatRevoked);
             await realtime.MembersChangedAsync(boardId, guestId);
             return Results.NoContent();
-        });
+        }).RequireRateLimiting("board-membership-write");
 
         return endpoints;
     }

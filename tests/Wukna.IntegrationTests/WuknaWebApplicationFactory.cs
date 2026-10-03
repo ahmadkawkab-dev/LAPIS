@@ -18,6 +18,9 @@ public class WuknaWebApplicationFactory(
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         builder.UseSetting("ConnectionStrings:Postgres", postgres.ConnectionString);
+        // Existing tests inspect pending outbox records deterministically. Chat
+        // realtime tests explicitly enable polling or drive the dispatcher.
+        builder.UseSetting("Chat:Outbox:Enabled", "false");
         builder.UseSetting("Jwt:Issuer", JwtIssuer);
         builder.UseSetting("Jwt:Audience", JwtAudience);
         builder.UseSetting("Jwt:SigningKey", JwtSigningKey);

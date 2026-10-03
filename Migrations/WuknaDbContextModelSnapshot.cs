@@ -354,6 +354,527 @@ namespace Wukna.Migrations
                         });
                 });
 
+            modelBuilder.Entity("Wukna.Features.Chat.BoardChatSettings", b =>
+                {
+                    b.Property<Guid>("BoardId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("board_id");
+
+                    b.Property<long>("LastMessageSequence")
+                        .HasColumnType("bigint")
+                        .HasColumnName("last_message_sequence");
+
+                    b.Property<long>("SettingsRevision")
+                        .HasColumnType("bigint")
+                        .HasColumnName("settings_revision");
+
+                    b.Property<int>("SlowModeSeconds")
+                        .HasColumnType("integer")
+                        .HasColumnName("slow_mode_seconds");
+
+                    b.HasKey("BoardId")
+                        .HasName("pk_board_chat_settings");
+
+                    b.ToTable("board_chat_settings", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_board_chat_settings_cooldown", "slow_mode_seconds BETWEEN 0 AND 21600");
+
+                            t.HasCheckConstraint("ck_board_chat_settings_counters", "settings_revision > 0 AND last_message_sequence >= 0");
+                        });
+                });
+
+            modelBuilder.Entity("Wukna.Features.Chat.BoardMemberChatState", b =>
+                {
+                    b.Property<Guid>("BoardId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("board_id");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.Property<long>("CooldownSettingsRevision")
+                        .HasColumnType("bigint")
+                        .HasColumnName("cooldown_settings_revision");
+
+                    b.Property<bool>("IsMuted")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_muted");
+
+                    b.Property<long>("LastReadSequence")
+                        .HasColumnType("bigint")
+                        .HasColumnName("last_read_sequence");
+
+                    b.Property<Guid>("MembershipInstanceId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("membership_instance_id");
+
+                    b.Property<long>("ModerationRevision")
+                        .HasColumnType("bigint")
+                        .HasColumnName("moderation_revision");
+
+                    b.Property<DateTimeOffset?>("MutedUntil")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("muted_until");
+
+                    b.Property<DateTimeOffset?>("NextSendAllowedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("next_send_allowed_at");
+
+                    b.HasKey("BoardId", "UserId")
+                        .HasName("pk_board_member_chat_states");
+
+                    b.ToTable("board_member_chat_states", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_board_member_chat_state_counters", "moderation_revision >= 0 AND cooldown_settings_revision >= 0 AND last_read_sequence >= 0");
+
+                            t.HasCheckConstraint("ck_board_member_chat_state_instance", "membership_instance_id <> '00000000-0000-0000-0000-000000000000'::uuid");
+
+                            t.HasCheckConstraint("ck_board_member_chat_state_mute", "is_muted OR muted_until IS NULL");
+                        });
+                });
+
+            modelBuilder.Entity("Wukna.Features.Chat.ChatAttachment", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<long>("ByteSize")
+                        .HasColumnType("bigint")
+                        .HasColumnName("byte_size");
+
+                    b.Property<string>("ContentType")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("content_type");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("now()");
+
+                    b.Property<int>("Height")
+                        .HasColumnType("integer")
+                        .HasColumnName("height");
+
+                    b.Property<long>("InputByteSize")
+                        .HasColumnType("bigint")
+                        .HasColumnName("input_byte_size");
+
+                    b.Property<string>("LastErrorCode")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("last_error_code");
+
+                    b.Property<Guid>("MessageId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("message_id");
+
+                    b.Property<DateTimeOffset>("NextScanAttemptAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("next_scan_attempt_at")
+                        .HasDefaultValueSql("now()");
+
+                    b.Property<string>("OriginalFileName")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)")
+                        .HasColumnName("original_file_name");
+
+                    b.Property<string>("OriginalStorageKey")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("original_storage_key");
+
+                    b.Property<long>("PreviewByteSize")
+                        .HasColumnType("bigint")
+                        .HasColumnName("preview_byte_size");
+
+                    b.Property<string>("PreviewStorageKey")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("preview_storage_key");
+
+                    b.Property<int>("ScanAttempts")
+                        .HasColumnType("integer")
+                        .HasColumnName("scan_attempts");
+
+                    b.Property<DateTimeOffset?>("ScanLeaseExpiresAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("scan_lease_expires_at");
+
+                    b.Property<Guid?>("ScanLeaseToken")
+                        .HasColumnType("uuid")
+                        .HasColumnName("scan_lease_token");
+
+                    b.Property<int>("ScanStatus")
+                        .HasColumnType("integer")
+                        .HasColumnName("scan_status");
+
+                    b.Property<DateTimeOffset?>("ScannedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("scanned_at");
+
+                    b.Property<string>("StorageKey")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("storage_key");
+
+                    b.Property<long>("StoredByteSize")
+                        .HasColumnType("bigint")
+                        .HasColumnName("stored_byte_size");
+
+                    b.Property<int>("Width")
+                        .HasColumnType("integer")
+                        .HasColumnName("width");
+
+                    b.HasKey("Id")
+                        .HasName("pk_chat_attachments");
+
+                    b.HasIndex("MessageId")
+                        .IsUnique()
+                        .HasDatabaseName("ix_chat_attachments_message_id");
+
+                    b.HasIndex("NextScanAttemptAt", "CreatedAt", "Id")
+                        .HasDatabaseName("ix_chat_attachments_scan_work")
+                        .HasFilter("scan_status IN (0, 1, 4)");
+
+                    b.ToTable("chat_attachments", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_chat_attachment_attempts", "scan_attempts >= 0");
+
+                            t.HasCheckConstraint("ck_chat_attachment_available_scan", "scan_status <> 2 OR scanned_at IS NOT NULL");
+
+                            t.HasCheckConstraint("ck_chat_attachment_dimensions", "width > 0 AND height > 0");
+
+                            t.HasCheckConstraint("ck_chat_attachment_lease", "(scan_status = 1 AND scan_lease_token IS NOT NULL AND scan_lease_expires_at IS NOT NULL) OR (scan_status <> 1 AND scan_lease_token IS NULL AND scan_lease_expires_at IS NULL)");
+
+                            t.HasCheckConstraint("ck_chat_attachment_sizes", "input_byte_size > 0 AND byte_size > 0 AND preview_byte_size > 0 AND stored_byte_size >= byte_size + preview_byte_size");
+
+                            t.HasCheckConstraint("ck_chat_attachment_status", "scan_status IN (0, 1, 2, 3, 4)");
+                        });
+                });
+
+            modelBuilder.Entity("Wukna.Features.Chat.ChatBlobWork", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<int>("Attempts")
+                        .HasColumnType("integer")
+                        .HasColumnName("attempts");
+
+                    b.Property<Guid>("BoardId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("board_id");
+
+                    b.Property<Guid?>("ClientMessageId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("client_message_id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("now()");
+
+                    b.Property<DateTimeOffset>("DueAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("due_at");
+
+                    b.Property<string>("LastErrorCode")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("last_error_code");
+
+                    b.Property<DateTimeOffset?>("LeaseExpiresAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("lease_expires_at");
+
+                    b.Property<Guid?>("LeaseToken")
+                        .HasColumnType("uuid")
+                        .HasColumnName("lease_token");
+
+                    b.Property<string>("OriginalStorageKey")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("original_storage_key");
+
+                    b.Property<string>("PreviewStorageKey")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("preview_storage_key");
+
+                    b.Property<int>("Purpose")
+                        .HasColumnType("integer")
+                        .HasColumnName("purpose");
+
+                    b.Property<long>("ReservedBytes")
+                        .HasColumnType("bigint")
+                        .HasColumnName("reserved_bytes");
+
+                    b.Property<string>("StorageKey")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("storage_key");
+
+                    b.Property<Guid?>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_chat_blob_work");
+
+                    b.HasIndex("DueAt", "Id")
+                        .HasDatabaseName("ix_chat_blob_work_due_at_id");
+
+                    b.HasIndex("BoardId", "UserId", "ClientMessageId")
+                        .IsUnique()
+                        .HasDatabaseName("ix_chat_blob_work_upload_reservation")
+                        .HasFilter("purpose = 0");
+
+                    b.ToTable("chat_blob_work", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_chat_blob_work_counters", "reserved_bytes >= 0 AND attempts >= 0");
+
+                            t.HasCheckConstraint("ck_chat_blob_work_lease", "(lease_token IS NULL AND lease_expires_at IS NULL) OR (lease_token IS NOT NULL AND lease_expires_at IS NOT NULL)");
+
+                            t.HasCheckConstraint("ck_chat_blob_work_purpose", "purpose IN (0, 1)");
+
+                            t.HasCheckConstraint("ck_chat_blob_work_reservation", "purpose <> 0 OR (user_id IS NOT NULL AND client_message_id IS NOT NULL AND reserved_bytes > 0)");
+                        });
+                });
+
+            modelBuilder.Entity("Wukna.Features.Chat.ChatMessage", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid>("BoardId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("board_id");
+
+                    b.Property<string>("Body")
+                        .HasMaxLength(4000)
+                        .HasColumnType("character varying(4000)")
+                        .HasColumnName("body");
+
+                    b.Property<Guid>("ClientMessageId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("client_message_id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("now()");
+
+                    b.Property<string>("RequestFingerprint")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("request_fingerprint");
+
+                    b.Property<Guid>("SenderUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("sender_user_id");
+
+                    b.Property<long>("Sequence")
+                        .HasColumnType("bigint")
+                        .HasColumnName("sequence");
+
+                    b.Property<int>("Type")
+                        .HasColumnType("integer")
+                        .HasColumnName("type");
+
+                    b.HasKey("Id")
+                        .HasName("pk_chat_messages");
+
+                    b.HasIndex("SenderUserId")
+                        .HasDatabaseName("ix_chat_messages_sender_user_id");
+
+                    b.HasIndex("BoardId", "Sequence")
+                        .IsUnique()
+                        .HasDatabaseName("ix_chat_messages_board_id_sequence");
+
+                    b.HasIndex("BoardId", "SenderUserId", "ClientMessageId")
+                        .IsUnique()
+                        .HasDatabaseName("ix_chat_messages_board_id_sender_user_id_client_message_id");
+
+                    b.ToTable("chat_messages", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_chat_message_body", "(type = 0 AND body IS NOT NULL AND length(btrim(body)) BETWEEN 1 AND 4000) OR (type = 1 AND (body IS NULL OR length(body) <= 2000)) OR (type = 2 AND body IS NULL)");
+
+                            t.HasCheckConstraint("ck_chat_message_client_id", "client_message_id <> '00000000-0000-0000-0000-000000000000'::uuid");
+
+                            t.HasCheckConstraint("ck_chat_message_fingerprint", "request_fingerprint ~ '^[0-9a-f]{64}$'");
+
+                            t.HasCheckConstraint("ck_chat_message_sequence", "sequence > 0");
+
+                            t.HasCheckConstraint("ck_chat_message_type", "type IN (0, 1, 2)");
+                        });
+                });
+
+            modelBuilder.Entity("Wukna.Features.Chat.ChatOutboxEvent", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<Guid?>("AttachmentId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("attachment_id");
+
+                    b.Property<int>("Attempts")
+                        .HasColumnType("integer")
+                        .HasColumnName("attempts");
+
+                    b.Property<Guid>("BoardId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("board_id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at")
+                        .HasDefaultValueSql("now()");
+
+                    b.Property<int>("EventVersion")
+                        .HasColumnType("integer")
+                        .HasColumnName("event_version");
+
+                    b.Property<int>("Kind")
+                        .HasColumnType("integer")
+                        .HasColumnName("kind");
+
+                    b.Property<string>("LastErrorCode")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("last_error_code");
+
+                    b.Property<DateTimeOffset?>("LeaseExpiresAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("lease_expires_at");
+
+                    b.Property<Guid?>("LeaseToken")
+                        .HasColumnType("uuid")
+                        .HasColumnName("lease_token");
+
+                    b.Property<Guid?>("MemberUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("member_user_id");
+
+                    b.Property<Guid?>("MembershipInstanceId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("membership_instance_id");
+
+                    b.Property<Guid?>("MessageId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("message_id");
+
+                    b.Property<long?>("MessageSequence")
+                        .HasColumnType("bigint")
+                        .HasColumnName("message_sequence");
+
+                    b.Property<DateTimeOffset>("NextAttemptAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("next_attempt_at")
+                        .HasDefaultValueSql("now()");
+
+                    b.Property<DateTimeOffset?>("ProcessedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("processed_at");
+
+                    b.Property<long?>("Revision")
+                        .HasColumnType("bigint")
+                        .HasColumnName("revision");
+
+                    b.HasKey("Id")
+                        .HasName("pk_chat_outbox_events");
+
+                    b.HasIndex("NextAttemptAt", "CreatedAt", "Id")
+                        .HasDatabaseName("ix_chat_outbox_events_pending")
+                        .HasFilter("processed_at IS NULL");
+
+                    b.ToTable("chat_outbox_events", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_chat_outbox_counters", "event_version > 0 AND attempts >= 0 AND (revision IS NULL OR revision >= 0) AND (message_sequence IS NULL OR message_sequence >= 0)");
+
+                            t.HasCheckConstraint("ck_chat_outbox_kind", "kind IN (0, 1, 2, 3, 4, 5)");
+
+                            t.HasCheckConstraint("ck_chat_outbox_lease", "(lease_token IS NULL AND lease_expires_at IS NULL) OR (lease_token IS NOT NULL AND lease_expires_at IS NOT NULL AND processed_at IS NULL)");
+
+                            t.HasCheckConstraint("ck_chat_outbox_payload", "(kind = 0 AND message_id IS NOT NULL AND message_sequence IS NOT NULL AND message_sequence > 0) OR (kind = 1 AND revision IS NOT NULL) OR (kind = 2 AND member_user_id IS NOT NULL AND revision IS NOT NULL) OR (kind = 3 AND attachment_id IS NOT NULL AND message_id IS NOT NULL) OR (kind = 4 AND member_user_id IS NOT NULL AND message_sequence IS NOT NULL) OR (kind = 5 AND ((member_user_id IS NULL AND membership_instance_id IS NULL) OR (member_user_id IS NOT NULL AND membership_instance_id IS NOT NULL)))");
+                        });
+                });
+
+            modelBuilder.Entity("Wukna.Features.Chat.ScheduledChatTask", b =>
+                {
+                    b.Property<Guid>("MessageId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("message_id");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(4000)
+                        .HasColumnType("character varying(4000)")
+                        .HasColumnName("description");
+
+                    b.Property<DateTimeOffset?>("EndsAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("ends_at_utc");
+
+                    b.Property<int>("OriginalOffsetMinutes")
+                        .HasColumnType("integer")
+                        .HasColumnName("original_offset_minutes");
+
+                    b.Property<DateTimeOffset>("StartsAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("starts_at_utc");
+
+                    b.Property<string>("TimeZoneId")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("time_zone_id");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("title");
+
+                    b.HasKey("MessageId")
+                        .HasName("pk_scheduled_chat_tasks");
+
+                    b.ToTable("scheduled_chat_tasks", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_scheduled_chat_task_end", "ends_at_utc IS NULL OR ends_at_utc > starts_at_utc");
+
+                            t.HasCheckConstraint("ck_scheduled_chat_task_offset", "original_offset_minutes BETWEEN -840 AND 840");
+
+                            t.HasCheckConstraint("ck_scheduled_chat_task_title", "length(btrim(title)) > 0");
+
+                            t.HasCheckConstraint("ck_scheduled_chat_task_zone", "length(btrim(time_zone_id)) > 0");
+                        });
+                });
+
             modelBuilder.Entity("Wukna.Features.NoteConnection.NoteConnection", b =>
                 {
                     b.Property<Guid>("Id")
@@ -992,6 +1513,75 @@ namespace Wukna.Migrations
                     b.Navigation("User");
                 });
 
+            modelBuilder.Entity("Wukna.Features.Chat.BoardChatSettings", b =>
+                {
+                    b.HasOne("Wukna.Features.Board.Board", "Board")
+                        .WithOne()
+                        .HasForeignKey("Wukna.Features.Chat.BoardChatSettings", "BoardId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_board_chat_settings_boards_board_id");
+
+                    b.Navigation("Board");
+                });
+
+            modelBuilder.Entity("Wukna.Features.Chat.BoardMemberChatState", b =>
+                {
+                    b.HasOne("Wukna.Features.Board.BoardMembership", "Membership")
+                        .WithOne()
+                        .HasForeignKey("Wukna.Features.Chat.BoardMemberChatState", "BoardId", "UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_board_member_chat_states_board_memberships_board_id_user_id");
+
+                    b.Navigation("Membership");
+                });
+
+            modelBuilder.Entity("Wukna.Features.Chat.ChatAttachment", b =>
+                {
+                    b.HasOne("Wukna.Features.Chat.ChatMessage", "Message")
+                        .WithOne("Attachment")
+                        .HasForeignKey("Wukna.Features.Chat.ChatAttachment", "MessageId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_chat_attachments_chat_messages_message_id");
+
+                    b.Navigation("Message");
+                });
+
+            modelBuilder.Entity("Wukna.Features.Chat.ChatMessage", b =>
+                {
+                    b.HasOne("Wukna.Features.Board.Board", "Board")
+                        .WithMany()
+                        .HasForeignKey("BoardId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_chat_messages_boards_board_id");
+
+                    b.HasOne("Wukna.Features.Users.User", "SenderUser")
+                        .WithMany()
+                        .HasForeignKey("SenderUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired()
+                        .HasConstraintName("fk_chat_messages_users_sender_user_id");
+
+                    b.Navigation("Board");
+
+                    b.Navigation("SenderUser");
+                });
+
+            modelBuilder.Entity("Wukna.Features.Chat.ScheduledChatTask", b =>
+                {
+                    b.HasOne("Wukna.Features.Chat.ChatMessage", "Message")
+                        .WithOne("ScheduledTask")
+                        .HasForeignKey("Wukna.Features.Chat.ScheduledChatTask", "MessageId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_scheduled_chat_tasks_chat_messages_message_id");
+
+                    b.Navigation("Message");
+                });
+
             modelBuilder.Entity("Wukna.Features.NoteConnection.NoteConnection", b =>
                 {
                     b.HasOne("Wukna.Features.Notes.Note", "SourceNote")
@@ -1121,6 +1711,13 @@ namespace Wukna.Migrations
                     b.Navigation("Memberships");
 
                     b.Navigation("Notes");
+                });
+
+            modelBuilder.Entity("Wukna.Features.Chat.ChatMessage", b =>
+                {
+                    b.Navigation("Attachment");
+
+                    b.Navigation("ScheduledTask");
                 });
 
             modelBuilder.Entity("Wukna.Features.Notes.Note", b =>
