@@ -202,6 +202,8 @@ export function errorMessage(error: unknown): string {
   if (!(error instanceof AuthApiError))
     return "Could not connect to Wukna. Try again.";
   const messages: Record<string, string> = {
+    board_guest_limit_reached: "This board has reached its guest limit. Remove a guest before adding someone new.",
+    board_membership_rate_limited: "Wait a moment before changing board membership again.",
     invalid_task_title: "Give the task a title of up to 200 characters.",
     invalid_task_description: "Keep the description under 4,000 characters.",
     invalid_task_schedule: "Choose a date before adding a time and time zone.",
@@ -300,6 +302,7 @@ export const boardApi = {
     request<BoardDetailDto>(board(id), "PATCH", { title }),
   remove: (id: string) => request<void>(board(id), "DELETE"),
   members: (id: string) => request<MemberDto[]>(`${board(id)}/members`),
+  guestLimit: (id: string) => request<{ maxGuests: number; guestCount: number }>(`${board(id)}/guest-limit`),
   setMemberPermission: (id: string, userId: string, canEdit: boolean) =>
     request<void>(`${board(id)}/members/${encodeURIComponent(userId)}`, "PATCH", { canEdit }),
   setGuest: (id: string, email: string, canEdit: boolean) =>

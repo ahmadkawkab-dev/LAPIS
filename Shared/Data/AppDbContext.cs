@@ -7,6 +7,7 @@ using Wukna.Features.Auth;
 using Wukna.Features.Tasks;
 using Wukna.Features.Calendar;
 using Wukna.Features.Notifications;
+using Wukna.Features.Chat;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 
@@ -33,6 +34,13 @@ public class WuknaDbContext : IdentityUserContext<User, Guid>
     public DbSet<CalendarEvent> CalendarEvents => Set<CalendarEvent>();
     public DbSet<TaskReminder> TaskReminders => Set<TaskReminder>();
     public DbSet<TaskNotification> TaskNotifications => Set<TaskNotification>();
+    public DbSet<BoardChatSettings> BoardChatSettings => Set<BoardChatSettings>();
+    public DbSet<BoardMemberChatState> BoardMemberChatStates => Set<BoardMemberChatState>();
+    public DbSet<ChatMessage> ChatMessages => Set<ChatMessage>();
+    public DbSet<ChatAttachment> ChatAttachments => Set<ChatAttachment>();
+    public DbSet<ScheduledChatTask> ScheduledChatTasks => Set<ScheduledChatTask>();
+    public DbSet<ChatOutboxEvent> ChatOutboxEvents => Set<ChatOutboxEvent>();
+    public DbSet<ChatBlobWork> ChatBlobWork => Set<ChatBlobWork>();
 
 
 protected override void OnModelCreating(ModelBuilder builder)

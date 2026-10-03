@@ -1,0 +1,29 @@
+# Development override only: docker compose -f compose.yaml -f compose.attachments.dev.yaml ...
+# Private production object storage is a separate implementation checkpoint.
+services:
+  api:
+    environment:
+      Chat__Attachments__Enabled: "true"
+      Chat__Attachments__ClamHost: clamd
+      Chat__Attachments__Directory: /app/App_Data/chat-attachments
+    volumes:
+      - chat_attachments_dev:/app/App_Data/chat-attachments
+    depends_on:
+      clamd:
+        condition: service_healthy
+  clamd:
+    image: clamav/clamav:1.5.4
+    restart: unless-stopped
+    mem_limit: 4g
+    volumes:
+      - clamav_signatures_dev:/var/lib/clamav
+    # No published port. clamd and freshclam run persistently in the official image.
+    healthcheck:
+      test: ["CMD", "clamdscan", "--ping=1"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 120s
+volumes:
+  chat_attachments_dev:
+  clamav_signatures_dev:

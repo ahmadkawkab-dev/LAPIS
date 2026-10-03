@@ -9,6 +9,7 @@ using Wukna.Features.Profile;
 using Wukna.Features.Tasks;
 using Wukna.Features.Calendar;
 using Wukna.Features.Notifications;
+using Wukna.Features.Chat;
 using Wukna.Shared.Data.AppDbContext;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Google;
@@ -50,6 +51,10 @@ ValidateGoogleOAuthSettings(googleSettings, builder.Environment);
 builder.Services.AddSingleton(jwtOptions);
 builder.Services.AddSingleton(googleSettings);
 builder.Services.AddSingleton(TimeProvider.System);
+builder.Services.AddChatMessages();
+builder.Services.AddOptions<BoardOptions>().BindConfiguration("Board")
+    .Validate(options => options.MaxGuests is >= 0 and <= 1000 && options.MembershipWritesPerMinute is >= 1 and <= 10000,
+        "Board:MaxGuests must be 0–1000; Board:MembershipWritesPerMinute must be 1–10000.").ValidateOnStart();
 builder.Services.AddSingleton<BoardActivity>();
 builder.Services.AddScoped<BoardSummaryReader>();
 builder.Services.AddSingleton<IProfileImageStore, FileProfileImageStore>();
@@ -122,8 +127,9 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             OnMessageReceived = context =>
             {
                 // Browser WebSocket/EventSource APIs cannot attach the Authorization header.
-                // Accept SignalR's query-token fallback on the one hub path only.
-                if (context.HttpContext.Request.Path.StartsWithSegments(BoardHub.Path))
+                // Accept SignalR's query-token fallback only on the two hub paths.
+                if (context.HttpContext.Request.Path.StartsWithSegments(BoardHub.Path) ||
+                    context.HttpContext.Request.Path.StartsWithSegments(ChatHub.Path))
                 {
                     var accessToken = context.Request.Query["access_token"].ToString();
                     if (!string.IsNullOrWhiteSpace(accessToken)) context.Token = accessToken;
@@ -228,6 +234,7 @@ app.UseStaticFiles(ProfileImageStaticFiles.Options(app.Services.GetRequiredServi
 app.UseRouting();
 app.UseAuthentication();
 app.UseAuthorization();
+app.UseRateLimiter();
 
 app.MapHealthChecks("/health");
 app.MapAuthEndpoints();
@@ -241,6 +248,9 @@ app.MapTaskTemplateEndpoints();
 app.MapCalendarEventEndpoints();
 app.MapCalendarRangeEndpoints();
 app.MapTaskReminderEndpoints();
+app.MapChatMessageEndpoints();
+app.MapHub<ChatHub>(ChatHub.Path, options =>
+    options.CloseOnAuthenticationExpiration = true).RequireAuthorization();
 app.MapHub<BoardHub>(BoardHub.Path, options =>
     options.CloseOnAuthenticationExpiration = true).RequireAuthorization();
 

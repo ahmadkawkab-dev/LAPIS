@@ -20,7 +20,7 @@ World dimensions are defined in `frontend/src/features/boards/boardBounds.ts` an
 
 ## What's next
 
-Standalone personal Tasks has a weekly planner, Quick Tasks, reusable day templates, Inbox, Today, Upcoming, named lists, and a saved planning time zone. Calendar has separate events, a combined scheduled task/event read, Month and Agenda views, and date scheduling by drag or date picker. Timed task reminders create in-app notifications. Recurrence and Calendar Week/Day grids are planned separately. Library, Journal, and Pictures still show coming-soon screens; development builds also include sample-content design previews. Board chat is not implemented yet.
+Standalone personal Tasks has a weekly planner, Quick Tasks, reusable day templates, Inbox, Today, Upcoming, named lists, and a saved planning time zone. Calendar has separate events, a combined scheduled task/event read, Month and Agenda views, and date scheduling by drag or date picker. Timed task reminders create in-app notifications. Recurrence and Calendar Week/Day grids are planned separately. Library, Journal, and Pictures still show coming-soon screens; development builds also include sample-content design previews. Board chat has a [responsive panel with text, image, and structured scheduled-task posts, live typing, owner moderation/slow mode, a configurable guest cap, cursor recovery, per-member unread cursors, private attachment storage, durable ClamAV scanning, authorized image previews/downloads, and calendar export](docs/BOARD_CHAT.md). Attachment uploads remain disabled by default pending live OCI and scanner configuration.
 
 ## Personal Tasks
 

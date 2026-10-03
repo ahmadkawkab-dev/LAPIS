@@ -30,6 +30,7 @@ import {
 } from "../../api";
 import { Dialog } from "../../components/ui/Dialog";
 import { Button } from "../../components/ui/Button";
+import { ChatWorkspace } from "../chat/ChatWorkspace";
 import { BoardPresence } from "./BoardPresence";
 import { SharePanel, TasksPanel } from "./components/BoardPanels";
 import type { VisualPatch } from "./boardTypes";
@@ -128,6 +129,7 @@ function WorkspaceContent({
   boardLoaded,
   notify,
 }: WorkspaceProps) {
+  const chatHost = useRef<HTMLElement>(null);
   const editor = useEditorActions();
   const editorNavigation = useEditorNavigation();
   const selected = editorNavigation.selectedNoteId;
@@ -953,7 +955,7 @@ function WorkspaceContent({
           </Button>
         </div>
       ) : (
-        <main className="board-main">
+        <main className="board-main" ref={chatHost}>
           <ZoomControls controller={viewport.controller} />
           <div className="canvas-tools">
             {editable && (
@@ -994,6 +996,7 @@ function WorkspaceContent({
             >
               <ListChecks size={16} aria-hidden="true" /><span>Tasks</span>
             </Button>
+            <ChatWorkspace boardId={id} userId={currentUserId} boardTitle={board?.title ?? "Board"} host={chatHost} />
           </div>
           <div
             className="canvas"
