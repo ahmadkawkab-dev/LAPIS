@@ -1,14 +1,12 @@
-import { TourHelpIcon } from "../../features/onboarding/TourHelpIcon";
 import { notificationUnread, subscribeNotificationUnread, chatUnreadCounts } from "../../features/notifications/notificationState";
 import { useSyncExternalStore, useEffect, useRef, useState, type FormEvent, type KeyboardEvent, type MouseEvent } from "react";
-import { Bell, Boxes, CalendarDays, CheckSquare, Home, Inbox, LayoutDashboard, PanelLeftClose, PanelLeftOpen, Plus, Search } from "lucide-react";
+import { Bell, Boxes, CalendarDays, CheckSquare, Home, Inbox, LayoutDashboard, PanelLeftClose, PanelLeftOpen, Plus, Search, Settings2 } from "lucide-react";
 import type { BoardListItemDto } from "../../api";
 import { errorMessage } from "../../api";
 import type { AuthSession } from "../../auth";
 import { BoardActionsDialog } from "../../features/boards/BoardActionsDialog";
 import { Avatar, identityLabel } from "../ui/Avatar";
 import { Button, IconButton } from "../ui/Button";
-import { useReplayTour } from "../../features/onboarding/OnboardingProvider";
 import { Dialog } from "../ui/Dialog";
 
 export function Sidebar({
@@ -81,12 +79,12 @@ export function Sidebar({
   }
 
   const links = [
-    { label: "Home", icon: Home, target: "/home", tour: "home", active: path === "/home" },
-    { label: "Boards", icon: LayoutDashboard, target: "/boards", tour: "boards", active: path.startsWith("/boards") },
+    { label: "Home", icon: Home, target: "/home", active: path === "/home" },
+    { label: "Boards", icon: LayoutDashboard, target: "/boards", active: path.startsWith("/boards") },
     { label: "Week", icon: CheckSquare, target: "/tasks", active: path === "/tasks" || /^\/tasks\/[0-9a-f-]{36}$/i.test(path) },
-    { label: "Calendar", icon: CalendarDays, target: "/calendar", tour: "calendar", active: path === "/calendar" },
-    { label: "Quick tasks", icon: Inbox, target: "/tasks/quick", tour: "quick-tasks", active: path === "/tasks/quick" },
-    { label: "Templates", icon: Boxes, target: "/tasks/templates", tour: "templates", active: path === "/tasks/templates" },
+    { label: "Calendar", icon: CalendarDays, target: "/calendar", active: path === "/calendar" },
+    { label: "Quick tasks", icon: Inbox, target: "/tasks/quick", active: path === "/tasks/quick" },
+    { label: "Templates", icon: Boxes, target: "/tasks/templates", active: path === "/tasks/templates" },
     { label: "Notifications", icon: Bell, target: "/notifications", active: path === "/notifications" },
   ];
 
@@ -121,9 +119,9 @@ export function Sidebar({
       </label>
     </div>
 
-    <nav data-tour="navigation" className="wk-sidebar-nav" aria-label="Primary navigation">
+    <nav className="wk-sidebar-nav" aria-label="Primary navigation">
       <div className="wk-sidebar-primary-links">
-        {links.map(({ label, icon: Icon, target, tour, active }) => <button key={target} data-tour={tour}
+        {links.map(({ label, icon: Icon, target, active }) => <button key={target}
           className={`wk-shell-link${active ? " wk-shell-link--active" : ""}`}
           aria-current={active ? "page" : undefined} aria-label={target === "/notifications" && unread ? `${label}, ${unread} unread` : label} title={label}
           onClick={() => navigate(target)}><Icon size={16} aria-hidden="true" /><span>{label}</span>{target === "/notifications" && unread > 0 && <span className="wk-nav-badge" aria-hidden="true">{unread > 99 ? "99+" : unread}</span>}</button>)}
@@ -139,13 +137,11 @@ export function Sidebar({
       </div>
     </nav>
 
-    <div className="wk-sidebar-account-area">
     <button className="wk-sidebar-account" onClick={onOpenAccount} aria-label={`Open account for ${identityLabel(user)}`}>
       <Avatar identity={user} size="small" />
       <span className="wk-sidebar-account-copy"><strong>{identityLabel(user)}</strong><small>{user.email}</small></span>
+      <Settings2 size={15} aria-hidden="true" />
     </button>
-    <IconButton className="wk-tour-replay" data-tour="replay" label="Replay onboarding tour" title="Take the Wukna tour" onClick={() => replayTour?.()}><TourHelpIcon /></IconButton>
-    </div>
 
     {creating && <Dialog title="New board" busy={createBusy} onClose={() => setCreating(false)}>
       <form className="wk-sidebar-create-form" onSubmit={(event) => void submitBoard(event)}>

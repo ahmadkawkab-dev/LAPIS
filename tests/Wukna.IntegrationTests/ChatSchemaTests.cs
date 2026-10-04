@@ -21,9 +21,6 @@ public sealed class ChatSchemaTests(PostgresFixture postgres)
         var migrator = db.Database.GetService<IMigrator>();
         await migrator.MigrateAsync("20261001165613_AddTaskRemindersAndNotifications", ct);
         var (board, owner, guest) = BoardWithMembers();
-        await PostgresFixture.InsertHistoricalUserAsync(db, owner, ct);
-        await PostgresFixture.InsertHistoricalUserAsync(db, guest, ct);
-        db.AttachRange(owner, guest);
         db.Boards.Add(board);
         await db.SaveChangesAsync(ct);
 

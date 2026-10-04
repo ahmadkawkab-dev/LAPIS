@@ -266,8 +266,7 @@ public sealed class NotificationFoundationTests(PostgresFixture postgres)
         var now = DateTimeOffset.FromUnixTimeSeconds(DateTimeOffset.UtcNow.ToUnixTimeSeconds());
         var tasks = Enumerable.Range(0, 3).Select(index => new PersonalTask { UserId = owner.Id,
             Title = $"Legacy {index}", CreatedAt = now, UpdatedAt = now }).ToArray();
-        await PostgresFixture.InsertHistoricalUserAsync(db, owner, ct);
-        db.PersonalTasks.AddRange(tasks); await db.SaveChangesAsync(ct);
+        db.Users.Add(owner); db.PersonalTasks.AddRange(tasks); await db.SaveChangesAsync(ct);
         for (var index = 0; index < tasks.Length; index++)
         {
             DateTimeOffset? read = index > 0 ? now : null;

@@ -119,6 +119,7 @@ export function DashboardPage({ user, boards, boardsLoading, boardsError, retryB
       <div><p className="wk-dashboard-eyebrow">{dateLabel(today)}</p>
         <h1 id="wk-dashboard-title">Hello, {name}</h1>
         <p>A calm plan for the work that matters.</p></div>
+      <Button variant="secondary" size="compact" onClick={() => navigate("/tasks/quick")}><Plus size={15} aria-hidden="true" /> Quick capture</Button>
     </header>
     <div className="wk-dashboard-body">
       {loading && !snapshot && <LoadingSkeleton layout="dashboard" label="Loading your day…" />}
