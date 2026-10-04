@@ -1,0 +1,9 @@
+.wk-sidebar-account-area { display: flex; align-items: center; gap: var(--space-1); padding-block-start: var(--space-3); border-block-start: 1px solid var(--border); }
+.wk-sidebar-account-area .wk-sidebar-account { flex: 1; min-width: 0; min-height: var(--target-size); grid-template-columns: 1.75rem minmax(0, 1fr); border: 0; padding: 0; }
+.wk-icon-button.wk-tour-replay { flex-shrink: 0; width: var(--target-size); min-width: var(--target-size); min-height: var(--target-size); padding: 0; color: var(--muted-foreground); border-radius: var(--radius-control); }
+.wk-tour-replay:hover, .wk-tour-replay:focus-visible { color: var(--foreground); background: var(--hover); }
+.wk-tour-help-icon { display: inline-block; width: 1.125rem; height: 1.125rem; flex-shrink: 0; background: currentColor; mask: url("/icons/flaticon-help.png") center / contain no-repeat; -webkit-mask: url("/icons/flaticon-help.png") center / contain no-repeat; }
+.wk-tour-icon-credit { color: var(--muted-foreground); font-size: var(--text-meta); margin: var(--space-2) 0 var(--space-4); }
+.wk-tour-icon-credit a { color: inherit; text-decoration: underline; text-underline-offset: 3px; }
+.wk-sidebar--collapsed .wk-sidebar-account-area { flex-direction: column; }
+.wk-mobile-account-area { display: flex; align-items: center; gap: var(--space-1); }

@@ -301,6 +301,7 @@ export function AccountPanel({
         <a href="/privacy">Privacy policy</a>
         <a href="/terms">Terms of service</a>
       </nav>
+      <p className="wk-tour-icon-credit">Tour icon designed by QudaDesign from <a href="https://www.flaticon.com/free-icon/question-mark-circle_10380844" target="_blank" rel="noopener noreferrer">Flaticon</a>.</p>
     </div>
   );
 }

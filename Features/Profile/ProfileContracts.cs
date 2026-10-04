@@ -9,3 +9,4 @@ public sealed record ProfileDto(
     string? ProfileImageUrl,
     string? ProfileImageVersion);
 public sealed record AvatarDto(string? ProfileImageUrl, string? ProfileImageVersion);
+public sealed record OnboardingDto(string Status, int Version);

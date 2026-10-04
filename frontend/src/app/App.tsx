@@ -24,6 +24,7 @@ const AccountPanel = lazy(() => import("../features/account/AccountPanel").then(
 import { accountSectionForPath } from "../features/account/accountRoute";
 import { Wordmark } from "../components/brand/Wordmark";
 import { AppShell } from "../components/navigation/AppShell";
+import { OnboardingProvider } from "../features/onboarding/OnboardingProvider";
 import { Button } from "../components/ui/Button";
 import { LoadingSkeleton } from "../components/ui/LoadingSkeleton";
 import { Notice } from "../components/ui/Notice";
@@ -61,6 +62,7 @@ export default function App() {
     [notice, setNotice] = useState<{ message: string; tone: "default" | "warning" } | null>(null),
     [boards, setBoards] = useState<BoardListItemDto[]>([]),
     [loading, setLoading] = useState(false),
+    [boardsReady, setBoardsReady] = useState(false),
     [failure, setFailure] = useState("");
   const started = useRef(false);
   const returnPath = useRef<string | null>(null);
@@ -122,6 +124,7 @@ export default function App() {
     setFailure("");
     try {
       setBoards(await boardApi.list());
+      setBoardsReady(true);
     } catch (cause) {
       setFailure(errorMessage(cause));
       throw cause;
@@ -156,6 +159,7 @@ export default function App() {
     setSessionExpiredHandler(() => {
       setSession(null);
       setBoards([]);
+      setBoardsReady(false);
       setStartupError("Your session expired. Please sign in again.");
       const target = window.location.pathname + window.location.search;
       returnPath.current = rememberNotificationReturnPath(target);
@@ -183,6 +187,7 @@ export default function App() {
       takeNotificationReturnPath(); returnPath.current = null;
       setSession(null);
       setBoards([]);
+      setBoardsReady(false);
       navigate("/login");
     } catch (cause) {
       notify(errorMessage(cause));
@@ -293,6 +298,7 @@ export default function App() {
     return <div className="wk-startup"><Wordmark /><p role="status">Opening your workspace…</p></div>;
   }
   return (
+    <OnboardingProvider key={session.user.id} ready={boardsReady && !loading && !failure} path={path}>
     <AppShell
       user={session.user}
       boards={boards}
@@ -352,5 +358,6 @@ export default function App() {
       )}
       </Suspense>
     </AppShell>
+    </OnboardingProvider>
   );
 }

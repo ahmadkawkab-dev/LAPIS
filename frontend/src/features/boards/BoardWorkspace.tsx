@@ -966,7 +966,7 @@ function WorkspaceContent({
         </div>
       </header>
       {loading ? (
-        <div className="workspace-state">Loading board…</div>
+        <div className="workspace-state" data-tour-loading="true">Loading board…</div>
       ) : failure ? (
         <div className="workspace-state">
           <h2>Board unavailable</h2>

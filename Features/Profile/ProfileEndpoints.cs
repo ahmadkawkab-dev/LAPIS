@@ -22,6 +22,31 @@ public static class ProfileEndpoints
             context.HttpContext.Response.Headers.CacheControl = "no-store";
             return await next(context);
         });
+        group.MapGet("/onboarding", async (HttpContext context, WuknaDbContext db, CancellationToken ct) =>
+        {
+            if (!TryGetUserId(context, out var id)) return Results.Unauthorized();
+            var state = await db.Users.AsNoTracking().Where(user => user.Id == id)
+                .Select(user => new OnboardingDto(user.OnboardingStatus, user.OnboardingVersion))
+                .SingleOrDefaultAsync(ct);
+            return state is null ? Results.Unauthorized() : Results.Ok(state);
+        });
+        group.MapPut("/onboarding", async (OnboardingDto request, HttpContext context,
+            WuknaDbContext db, CancellationToken ct) =>
+        {
+            if (!TryGetUserId(context, out var id)) return Results.Unauthorized();
+            if (request.Version != 1 || request.Status is not ("Completed" or "Skipped"))
+                return Error(400, "invalid_onboarding_state", "Choose a valid outcome for the current tour.");
+            // Only these two preferences change. Older clients cannot erase a later tour version.
+            var updated = await db.Users.Where(user => user.Id == id && user.OnboardingVersion <= request.Version)
+                .ExecuteUpdateAsync(setters => setters
+                    .SetProperty(user => user.OnboardingStatus, request.Status)
+                    .SetProperty(user => user.OnboardingVersion, request.Version), ct);
+            if (updated == 0)
+                return await db.Users.AnyAsync(user => user.Id == id, ct)
+                    ? Error(409, "onboarding_version_changed", "A newer tour has already been saved.")
+                    : Results.Unauthorized();
+            return Results.Ok(request);
+        });
         group.MapGet("", async (HttpContext context, WuknaDbContext db, CancellationToken ct) =>
         {
             if (!TryGetUserId(context, out var id)) return Results.Unauthorized();

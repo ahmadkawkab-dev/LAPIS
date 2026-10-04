@@ -14,6 +14,10 @@ public sealed class UserConfiguration : IEntityTypeConfiguration<User>
         entity.Property(user => user.DisplayName).HasMaxLength(80);
         entity.Property(user => user.ProfileImageKey).HasMaxLength(80);
         entity.Property(user => user.ProfileImageVersion).HasMaxLength(40);
+        entity.Property(user => user.OnboardingStatus).HasMaxLength(20).HasDefaultValue("NotStarted").IsRequired();
+        entity.Property(user => user.OnboardingVersion).HasDefaultValue(0);
+        entity.ToTable(table => table.HasCheckConstraint("ck_users_onboarding",
+            "onboarding_version >= 0 AND onboarding_status IN ('NotStarted', 'Completed', 'Skipped')"));
         entity.HasIndex(user => user.NormalizedUsername).HasDatabaseName("ix_asp_net_users_normalized_username").IsUnique();
 
         // Identity normalizes email casing before persistence. Database uniqueness closes the
