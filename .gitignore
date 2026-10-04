@@ -90,3 +90,5 @@ Desktop.ini
 /docs/ui-ux-verification/
 !/docs/BOARD_CHAT.md
 !/docs/NOTIFICATIONS.md
+!/docs/PRODUCTION_RELEASE.md
+!/docs/ONBOARDING.md

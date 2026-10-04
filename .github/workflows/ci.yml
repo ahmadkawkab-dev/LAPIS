@@ -26,7 +26,7 @@ jobs:
         run: dotnet build tests/Wukna.IntegrationTests/Wukna.IntegrationTests.csproj --configuration Release --no-restore
 
       - name: Test
-        run: dotnet test tests/Wukna.IntegrationTests/Wukna.IntegrationTests.csproj --configuration Release --no-build
+        run: dotnet test --project tests/Wukna.IntegrationTests/Wukna.IntegrationTests.csproj --configuration Release --no-build
 
   frontend:
     runs-on: ubuntu-latest
