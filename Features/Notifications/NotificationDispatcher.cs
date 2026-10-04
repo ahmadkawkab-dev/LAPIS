@@ -126,18 +126,41 @@ public sealed class NotificationDispatcher(IServiceScopeFactory scopes, TimeProv
         var bucket = work.CreatedAt.ToUnixTimeSeconds() / (work.Type == NotificationType.ChatActivity ? 30 : 60);
         var key = priority ? $"event:{work.SourceEventKey}" : $"{work.Type}:{work.BoardId:N}:{work.MembershipInstanceId:N}:{kind}:{bucket}";
         await db.Database.ExecuteSqlInterpolatedAsync($"SELECT pg_advisory_xact_lock(hashtextextended({work.UserId.ToString() + key}, 0))", ct);
+        var chatSequence = work.Type == NotificationType.ChatActivity ? work.MessageSequence : null;
+        if (work.Type == NotificationType.ChatActivity && chatSequence is not > 0)
+            throw new InvalidOperationException("Chat notification work must have a positive message sequence.");
         var item = await db.Notifications.SingleOrDefaultAsync(item => item.UserId == work.UserId && item.AggregationKey == key && item.DismissedAt == null, ct);
+        var newestChatMessage = true;
         if (item is null)
         {
             item = new Notification { UserId = work.UserId, Type = work.Type, BoardId = work.BoardId,
                 MembershipInstanceId = work.MembershipInstanceId, AggregationKey = key,
-                IssuedAt = work.CreatedAt, FirstChatSequence = work.MessageSequence };
+                IssuedAt = work.CreatedAt, UpdatedAt = work.CreatedAt,
+                FirstChatSequence = chatSequence, LastChatSequence = chatSequence };
             db.Notifications.Add(item);
         }
-        else { item.Revision++; item.ActivityCount++; item.ReadAt = null; }
-        item.Title = title; item.ActivityKind = kind; item.ActorUserId = work.ActorUserId;
-        item.ResourceKind = work.ResourceKind; item.ResourceId = work.ResourceId;
-        item.LastChatSequence = work.MessageSequence; item.UpdatedAt = work.CreatedAt;
+        else
+        {
+            if (chatSequence is { } sequence)
+            {
+                if (item.FirstChatSequence is not > 0 || item.LastChatSequence is not > 0)
+                    throw new InvalidOperationException("Aggregated chat notification has no valid sequence range.");
+                newestChatMessage = sequence >= item.LastChatSequence.Value;
+                item.FirstChatSequence = Math.Min(item.FirstChatSequence.Value, sequence);
+                item.LastChatSequence = Math.Max(item.LastChatSequence.Value, sequence);
+                if (work.CreatedAt < item.IssuedAt) item.IssuedAt = work.CreatedAt;
+                if (work.CreatedAt > item.UpdatedAt) item.UpdatedAt = work.CreatedAt;
+            }
+            else item.UpdatedAt = work.CreatedAt;
+            item.Revision++; item.ActivityCount++; item.ReadAt = null;
+        }
+        // Work may arrive out of sequence after a retry or when messages share a timestamp.
+        // The visible resource must describe the newest message in the stored sequence range.
+        if (newestChatMessage)
+        {
+            item.Title = title; item.ActivityKind = kind; item.ActorUserId = work.ActorUserId;
+            item.ResourceKind = work.ResourceKind; item.ResourceId = work.ResourceId;
+        }
         NotificationSources.Deliver(db, item, now);
     }
 

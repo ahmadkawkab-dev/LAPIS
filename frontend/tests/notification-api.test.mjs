@@ -44,3 +44,14 @@ test('read and dismiss carry the observed revision and preference conflicts rema
       error.status === 409 && /another session/.test(errorMessage(error)));
   } finally { delete globalThis.notificationTestFetch; }
 });
+
+test('dismiss read uses authenticated bulk transport without client ownership or page limits', async () => {
+  const calls = [];
+  globalThis.notificationTestFetch = async (path, init) => { calls.push({ path, init }); return Response.json({ dismissedCount: 41 }); };
+  try {
+    assert.deepEqual(await notificationApi.dismissRead(), { dismissedCount: 41 });
+    assert.equal(calls[0].path, '/api/notifications/dismiss-read');
+    assert.equal(calls[0].init.method, 'POST');
+    assert.equal(calls[0].init.body, undefined);
+  } finally { delete globalThis.notificationTestFetch; }
+});

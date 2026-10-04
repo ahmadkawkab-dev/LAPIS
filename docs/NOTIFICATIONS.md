@@ -8,6 +8,8 @@ The notification center now receives persistent chat activity, direct mentions, 
 
 Unread is `readRevision < revision`, excluding dismissed entries. Chat unread is separate and based on the existing message sequence/read cursor. Reading through a chat sequence marks only notification aggregates covered by that cursor. Reading or dismissing a center entry does not mark chat messages read. Observed notification revisions prevent older clients marking newer aggregate activity read or dismissed.
 
+The center's Dismiss read action calls authenticated `POST /api/notifications/dismiss-read`. It dismisses all currently accessible read entries across pagination and returns `{ dismissedCount }`; it preserves unread revisions, previous dismissals and read timestamps. Ownership and board membership incarnation are checked in the same database update. Repeating the action is a no-op, and a successful change queues the existing notification state update for other sessions.
+
 `AddNotificationFoundation` preserves legacy reminder IDs, read and dismissal state before retiring the old table. `20261004004046_AddNotificationDelivery` adds chat mention/reply metadata, durable notification work, foreground leases, subscription storage, reminder generations and calendar reminder rows. Existing chat messages keep empty mentions/no reply. Existing personal reminders get fresh generation IDs. Downgrading delivery drops its new data; downgrading foundation retains only personal-task reminder notifications. Review the SQL and backup before a production migration; the API does not migrate on startup.
 
 ## Sources and delivery

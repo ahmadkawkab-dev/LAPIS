@@ -1,3 +1,4 @@
+import { LoadingSkeleton } from "../../components/ui/LoadingSkeleton";
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { errorMessage, notificationApi, type NotificationPreferenceDto, type NotificationSettings } from "../../api";
 import { Button } from "../../components/ui/Button";
@@ -78,8 +79,8 @@ export function NotificationPreferences({ notify, userId }: { notify: (message: 
       <p>Your choices are saved to your account. Sound mute keeps visual notifications and unread counts enabled.</p></div>
     <BrowserPushPreferences userId={userId} />
     {failure && <div className="wk-account-error" role="alert"><p>{failure}</p>
-      <Button variant="secondary" disabled={busy} onClick={() => void load()}>Reload settings</Button></div>}
-    {loading ? <p role="status">Loading notification settings…</p> : value && <form onSubmit={(event) => void save(event)}>
+      <Button variant="secondary" loading={busy} onClick={() => void load()}>Reload settings</Button></div>}
+    {loading ? <LoadingSkeleton layout="form" label="Loading notification settings…" /> : value && <form onSubmit={(event) => void save(event)}>
       <fieldset disabled={busy}>
         <legend>Notification delivery</legend>
         <label className="wk-notification-toggle"><input type="checkbox" checked={value.settings.pushEnabled}
@@ -110,7 +111,7 @@ export function NotificationPreferences({ notify, userId }: { notify: (message: 
         <p>These clips play in Wukna. Background notification sound follows your browser and device settings.</p>
         {soundFailure && <p role="status">{soundFailure}</p>}
       </fieldset>
-      <Button type="submit" disabled={busy}>{busy ? "Saving…" : "Save notification settings"}</Button>
+      <Button type="submit" loading={busy}>Save notification settings</Button>
     </form>}
   </section>;
 }

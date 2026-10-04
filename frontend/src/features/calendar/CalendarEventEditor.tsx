@@ -45,12 +45,12 @@ export function CalendarEventEditor({ event, date, zone, onClose, onSaved, onDel
     catch (cause) { setError(errorMessage(cause)); }
     finally { setBusy(false); }
   }
-  return <Dialog title={confirmDelete ? "Delete event?" : event ? "Edit event" : "New event"} onClose={onClose} urgent={confirmDelete}>
+  return <Dialog busy={busy} title={confirmDelete ? "Delete event?" : event ? "Edit event" : "New event"} onClose={onClose} urgent={confirmDelete}>
     {confirmDelete ? <div className="wk-calendar-editor">
       <p>“{event?.title}” will be permanently deleted.</p>
       {error && <p className="wk-calendar-error" role="alert">{error}</p>}
-      <div className="wk-dialog-actions"><Button variant="danger" disabled={busy} onClick={() => void remove()}>Delete event</Button>
-        <Button variant="secondary" disabled={busy} onClick={() => setConfirmDelete(false)}>Cancel</Button></div>
+      <div className="wk-dialog-actions"><Button variant="danger" loading={busy} onClick={() => void remove()}>Delete event</Button>
+        <Button variant="secondary" loading={busy} onClick={() => setConfirmDelete(false)}>Cancel</Button></div>
     </div> : <form className="wk-calendar-editor" onSubmit={(submit) => void save(submit)}>
       <label>Title <input value={title} maxLength={200} required onChange={(change) => setTitle(change.target.value)} autoFocus /></label>
       <label className="wk-calendar-check"><input type="checkbox" checked={isAllDay} onChange={(change) => setIsAllDay(change.target.checked)} /> All day</label>
@@ -64,7 +64,7 @@ export function CalendarEventEditor({ event, date, zone, onClose, onSaved, onDel
       <label>Description <textarea value={description} maxLength={4000} rows={3} onChange={(change) => setDescription(change.target.value)} /></label>
       {event?.sourceChatMessageId && !isAllDay && <CalendarReminderPanel eventId={event.id} />}
       {error && <p className="wk-calendar-error" role="alert">{error}</p>}
-      <div className="wk-dialog-actions"><Button type="submit" disabled={busy || !title.trim()}>{event ? "Save changes" : "Create event"}</Button>
+      <div className="wk-dialog-actions"><Button type="submit" loading={busy} disabled={!title.trim()}>{event ? "Save changes" : "Create event"}</Button>
         {event && <Button variant="quiet" disabled={busy} onClick={() => setConfirmDelete(true)}>Delete</Button>}
         <Button variant="secondary" disabled={busy} onClick={onClose}>Cancel</Button></div>
     </form>}

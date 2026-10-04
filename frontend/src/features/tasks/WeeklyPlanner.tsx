@@ -61,7 +61,7 @@ function InlineTaskAdd({ date, zone, onCreated }: {
       <label className="wk-sr-only" htmlFor={`wk-add-${date ?? "quick"}`}>New {date ? label(date, { weekday: "long" }) : "quick"} task</label>
       <input id={`wk-add-${date ?? "quick"}`} autoFocus maxLength={200} value={title} placeholder="Task name"
         onChange={(event) => setTitle(event.target.value)} onKeyDown={(event) => { if (event.key === "Escape") { event.preventDefault(); setEditing(false); setTitle(""); setError(""); } }} />
-      <div className="wk-board-add-actions"><Button size="compact" type="submit" disabled={busy || !title.trim()}>Add</Button>
+      <div className="wk-board-add-actions"><Button size="compact" type="submit" loading={busy} disabled={!title.trim()}>Add</Button>
         <button type="button" className="wk-board-add-cancel" onClick={() => { setEditing(false); setTitle(""); setError(""); }}>Cancel</button></div>
     </form> : <button ref={trigger} className="wk-board-add-trigger" onClick={() => setEditing(true)}><Plus size={16} aria-hidden="true" /> Add task</button>}
     {error && <p className="wk-task-error" role="alert">{error}</p>}
@@ -173,11 +173,11 @@ export function WeeklyPlanner({ start, today, tasks, quickTasks, quickLoading, q
   const range = `${label(start, { month: "short", day: "numeric" })} – ${label(dates[6], { month: "short", day: "numeric", year: start.slice(0, 4) !== dates[6].slice(0, 4) ? "numeric" : undefined })}`;
   return <>
     <div className="wk-week-nav" aria-label="Week navigation">
-      <button aria-label="Previous week" onClick={() => onWeekChange(addDays(start, -7))}><ChevronLeft size={17} /> Previous</button>
+      <button aria-label="Previous week" onClick={() => onWeekChange(addDays(start, -7))}><ChevronLeft size={17} aria-hidden="true" /> Previous</button>
       <span>{range}</span>
       <div><Button variant="secondary" size="compact" onClick={() => onTemplate({ mode: "manage" })}>Templates</Button>
         {start !== currentStart && <button onClick={() => onWeekChange(currentStart)}>Today</button>}
-        <button aria-label="Next week" onClick={() => onWeekChange(addDays(start, 7))}>Next <ChevronRight size={17} /></button></div>
+        <button aria-label="Next week" onClick={() => onWeekChange(addDays(start, 7))}>Next <ChevronRight size={17} aria-hidden="true" /></button></div>
     </div>
     <div className="wk-week-mobile-days" aria-label="Choose a day">
       {dates.map((date) => <button key={date} aria-current={mobileDate === date ? "date" : undefined}

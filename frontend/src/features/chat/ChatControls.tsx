@@ -69,7 +69,7 @@ export function ChatControls({ controller, snapshot, onBack }: {
       <label htmlFor="chat-slow-mode">Slow mode (seconds)</label>
       <div className="chat-control-field"><input id="chat-slow-mode" type="number" min={0} max={21600} step={1} required
         value={seconds} onChange={event => setSeconds(event.target.value)} disabled={busy} />
-        <Button type="submit" size="compact" disabled={busy || seconds.trim() === "" || Number(seconds) === slowMode}>Save</Button></div>
+        <Button type="submit" size="compact" loading={busy} disabled={seconds.trim() === "" || Number(seconds) === slowMode}>Save</Button></div>
       <p>0 turns slow mode off. Each guest has their own delay; you can send at any time.</p>
     </form>
     <h3>Member chat access</h3>
@@ -86,7 +86,7 @@ export function ChatControls({ controller, snapshot, onBack }: {
         <Avatar size="small" identity={{ username: sender.username, displayName: sender.displayName, profileImageUrl: sender.avatarUrl }} />
         <div><strong>{name}</strong><span>{member.role === 1 ? "Owner" : muted ?
           member.mutedUntil ? `Muted until ${new Date(member.mutedUntil).toLocaleString()}` : "Muted" : "Can send messages"}</span></div>
-        {member.role !== 1 && <Button size="compact" variant="quiet" disabled={busy || loading}
+        {member.role !== 1 && <Button size="compact" variant="quiet" loading={busy} disabled={loading}
           aria-label={`${muted ? "Unmute" : "Mute"} ${name}`} onClick={() => void update(signal => chatModerationApi.mute(
             controller.boardId, member, !muted, muted || duration === "permanent" ? null :
               new Date(Date.now() + snapshot.serverOffsetMs + Number(duration) * 1000).toISOString(), signal))}>
@@ -94,7 +94,7 @@ export function ChatControls({ controller, snapshot, onBack }: {
       </li>;
     })}</ul>
     {loading && <p role="status">Loading member status…</p>}
-    {next && <Button variant="quiet" disabled={busy || loading} onClick={() => void load(next)}>More members</Button>}
+    {next && <Button variant="quiet" loading={busy} disabled={loading} onClick={() => void load(next)}>More members</Button>}
     {!loading && !members.length && <Button variant="quiet" onClick={() => void load()}>Reload members</Button>}
   </section>;
 }

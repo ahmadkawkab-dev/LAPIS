@@ -7,7 +7,7 @@ import {
   type AccountStatus,
   type AuthSession,
 } from "../../auth";
-import { errorMessage, profileApi, type ProfileDto } from "../../api";
+import { AuthApiError, errorMessage, profileApi, type ProfileDto } from "../../api";
 import { Button } from "../../components/ui/Button";
 import { Field } from "../../components/ui/Field";
 import { Avatar } from "../../components/ui/Avatar";
@@ -40,6 +40,7 @@ export function AccountPanel({
   const [displayName, setDisplayName] = useState(user.displayName ?? "");
   const [profileBusy, setProfileBusy] = useState(false);
   const [profileError, setProfileError] = useState("");
+  const [profileFieldError, setProfileFieldError] = useState<{ username?: string; displayName?: string }>({});
   const [profileLoadFailed, setProfileLoadFailed] = useState(false);
   const [preview, setPreview] = useState<string | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
@@ -97,6 +98,7 @@ export function AccountPanel({
     event.preventDefault();
     setProfileBusy(true);
     setProfileError("");
+    setProfileFieldError({});
     setProfileLoadFailed(false);
     try {
       const response = await profileApi.update(username, displayName);
@@ -113,7 +115,14 @@ export function AccountPanel({
       setDisplayName(updated.displayName ?? "");
       onProfileUpdated(updated);
       notify("Profile updated");
-    } catch (cause) { setProfileError(errorMessage(cause)); }
+    } catch (cause) {
+      const message = errorMessage(cause);
+      setProfileError(message);
+      if (cause instanceof AuthApiError) {
+        if (['invalid_username', 'username_taken'].includes(cause.code)) setProfileFieldError({ username: message });
+        if (cause.code === 'display_name_too_long') setProfileFieldError({ displayName: message });
+      }
+    }
     finally { setProfileBusy(false); }
   }
 
@@ -180,8 +189,8 @@ export function AccountPanel({
       <header className="wk-account-page-heading">
         <div><span className="wk-account-eyebrow">Account</span><h1>Profile & settings</h1>
           <p>Manage how Wukna works for you.</p></div>
-        {section === "profile" && <Button type="submit" form="wk-profile-form" disabled={profileLoading || profileBusy || !username.trim()}>
-          {profileBusy ? "Saving…" : "Save changes"}</Button>}
+        {section === "profile" && <Button type="submit" form="wk-profile-form" loading={profileBusy} loadingLabel="Saving…" disabled={profileLoading || !username.trim()}>
+          Save changes</Button>}
       </header>
       <div className="wk-account-layout">
       <nav className="wk-account-tabs" aria-label="Account sections">
@@ -216,11 +225,11 @@ export function AccountPanel({
             </div>
           </div>
           <Field label="Display name" name="displayName" autoComplete="name" maxLength={80}
-            value={displayName} onChange={(event) => setDisplayName(event.target.value)} disabled={profileBusy} />
+            error={profileFieldError.displayName} value={displayName} onChange={(event) => setDisplayName(event.target.value)} disabled={profileBusy} />
           <Field label="Username" name="username" autoComplete="nickname" minLength={3} maxLength={30} required
             hint="3–30 letters, numbers, periods, underscores, or hyphens."
-            value={username} onChange={(event) => setUsername(event.target.value)} disabled={profileBusy} />
-          <Field label="Email" name="email" type="email" value={profile?.email ?? user.email} disabled readOnly />
+            error={profileFieldError.username} value={username} onChange={(event) => setUsername(event.target.value)} disabled={profileBusy} />
+          <Field label="Email" name="email" type="email" value={profile?.email ?? user.email} readOnly hint="Your sign-in email cannot be changed here." />
         </section>
       </form>
       }</> : <>

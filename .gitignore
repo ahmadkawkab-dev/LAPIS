@@ -84,5 +84,9 @@ Desktop.ini
 !/docs/session-restoration.md
 !/docs/UI_UX_DESIGN_SYSTEM.md
 !/docs/UI_UX_AUDIT.md
+!/docs/UI_UX_REFACTOR_AUDIT.md
+
+# Local visual verification captures (summary stays in the audit)
+/docs/ui-ux-verification/
 !/docs/BOARD_CHAT.md
 !/docs/NOTIFICATIONS.md

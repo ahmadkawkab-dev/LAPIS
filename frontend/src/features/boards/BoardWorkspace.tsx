@@ -38,6 +38,7 @@ import { isNoteConflict, useNoteMutationQueue } from "./hooks/useNoteMutationQue
 import { useBoardCursors } from "./hooks/useBoardCursors";
 import { useBoardEditing } from "./hooks/useBoardEditing";
 import { NoteCard } from "./components/NoteCard";
+import { ConnectionEditor } from "./components/ConnectionEditor";
 import { InspectorFrame, PropertiesEditor } from "./components/BoardInspector";
 import type { EditingViewer } from "./NoteEditingIndicator";
 import {
@@ -170,6 +171,8 @@ function WorkspaceContent({
     void boardApi.members(id).then(setMembers).catch(() => undefined);
   }, [id, profileIdentityVersion]);
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
+  const [editingEdgeId, setEditingEdgeId] = useState<string | null>(null);
+  const editingEdge = edges.find((edge) => edge.id === editingEdgeId);
   const pendingConnections = useRef(new Set<string>());
   const connectionTombstones = useRef(new Map<string, number>());
   const notesRef = useRef<NoteDto[]>([]);
@@ -794,27 +797,35 @@ function WorkspaceContent({
     if (!current.connectionId) { await createConnection(current.fixedNoteId, target.id, current.fixedSide, target.side); return; }
     const sourceNoteId = current.endpoint === "source" ? target.id : current.fixedNoteId;
     const targetNoteId = current.endpoint === "target" ? target.id : current.fixedNoteId;
-    if (sourceNoteId === targetNoteId || notesAreConnected(sourceNoteId, targetNoteId, edges, current.connectionId)) { notify("These cards are already connected."); return; }
-    if (pendingConnections.current.has(current.connectionId)) return;
-    pendingConnections.current.add(current.connectionId);
+    await reconnectConnection(current.connectionId, current.version ?? 0, {
+      sourceNoteId, targetNoteId,
+      sourceHandle: current.endpoint === "source" ? target.side : current.fixedSide,
+      targetHandle: current.endpoint === "target" ? target.side : current.fixedSide,
+    });
+  }
+  async function reconnectConnection(connectionId: string, version: number, payload: {
+    sourceNoteId: string; targetNoteId: string; sourceHandle: ConnectionSide; targetHandle: ConnectionSide;
+  }) {
+    if (!board?.canEdit) return false;
+    if (payload.sourceNoteId === payload.targetNoteId || notesAreConnected(payload.sourceNoteId, payload.targetNoteId, edges, connectionId)) {
+      notify("Choose two different cards that are not already connected."); return false;
+    }
+    if (pendingConnections.current.has(connectionId)) return false;
+    pendingConnections.current.add(connectionId);
     try {
-      const updated = await connectionApi.reconnect(id, current.connectionId, current.version ?? 0, {
-        sourceNoteId, targetNoteId,
-        sourceHandle: current.endpoint === "source" ? target.side : current.fixedSide,
-        targetHandle: current.endpoint === "target" ? target.side : current.fixedSide,
-      });
-      mergeConnection(updated); notify("Connection updated");
+      const updated = await connectionApi.reconnect(id, connectionId, version, payload);
+      mergeConnection(updated); notify("Connection updated"); return true;
     } catch (cause) {
       if (cause instanceof AuthApiError && cause.code === "connection_version_conflict") {
         try {
-          const latest = (await connectionApi.list(id)).find((edge) => edge.id === current.connectionId);
+          const latest = (await connectionApi.list(id)).find((edge) => edge.id === connectionId);
           // Preserve a newer event received while the HTTP reload was in flight.
           if (latest) mergeConnection(latest);
-          else setEdges((edges) => edges.filter((edge) => edge.id !== current.connectionId));
+          else setEdges((edges) => edges.filter((edge) => edge.id !== connectionId));
         } catch { notify("Could not reload the connection. Try refreshing the board."); }
       }
-      notify(errorMessage(cause));
-    } finally { pendingConnections.current.delete(current.connectionId); }
+      notify(errorMessage(cause)); return false;
+    } finally { pendingConnections.current.delete(connectionId); }
   }
   async function removeEdge(edgeId: string) {
     try {
@@ -994,6 +1005,7 @@ function WorkspaceContent({
                 </Button>
               </>
             )}
+            {editable && selectedEdgeId && <Button variant="secondary" size="compact" onClick={() => setEditingEdgeId(selectedEdgeId)}>Edit connection</Button>}
             <span className="tool-rule" />
             <Button variant="secondary" size="compact" className="board-tool-button"
               aria-label="Tasks"
@@ -1193,6 +1205,9 @@ function WorkspaceContent({
                             )?.title
                           }
                           {editable && (
+                            <Button variant="quiet" size="compact" onClick={() => setEditingEdgeId(edge.id)}>Edit connection</Button>
+                          )}
+                          {editable && (
                             <Button variant="quiet" size="compact" onClick={() => void removeEdge(edge.id)}>
                               Remove
                             </Button>
@@ -1228,6 +1243,8 @@ function WorkspaceContent({
           )}
         </main>
       )}
+      {editingEdge && editable && <ConnectionEditor key={editingEdge.id} edge={editingEdge} notes={top}
+        close={() => setEditingEdgeId(null)} save={(payload) => reconnectConnection(editingEdge.id, editingEdge.version, payload)} />}
       {conflicted && (
         <Dialog title="This note changed while you were editing" urgent onClose={() => setConflicted(null)}>
           <p>

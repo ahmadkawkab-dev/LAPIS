@@ -222,7 +222,7 @@ export function SharePanel({
           }} />
       )}
       {removeTarget && (
-        <Dialog title={`Remove ${identityLabel(removeTarget)}?`} urgent
+        <Dialog busy={busy} title={`Remove ${identityLabel(removeTarget)}?`} urgent
           onClose={() => {
             if (busy) return;
             setRemoveTarget(null);
@@ -231,12 +231,12 @@ export function SharePanel({
           <p>They will immediately lose access to this board.</p>
           {error && <p className="wk-alert" role="alert">{error}</p>}
           <div className="wk-dialog-actions">
-            <Button variant="quiet" disabled={busy} onClick={() => {
+            <Button variant="quiet" loading={busy} onClick={() => {
               setRemoveTarget(null);
               queueMicrotask(() => removalOrigin.current?.focus());
             }}>Cancel</Button>
-            <Button variant="danger" disabled={busy} onClick={() => void remove()}>
-              {busy ? "Removing…" : "Remove collaborator"}
+            <Button variant="danger" loading={busy} onClick={() => void remove()}>
+              Remove collaborator
             </Button>
           </div>
         </Dialog>
@@ -260,7 +260,7 @@ export function SharePanel({
             />{" "}
             Allow editing
           </label>
-          <Button type="submit" disabled={busy || !email.trim()}>
+          <Button type="submit" loading={busy} disabled={!email.trim()}>
             Add or update guest
           </Button>
         </form>

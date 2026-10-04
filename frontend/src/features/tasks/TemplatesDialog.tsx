@@ -21,6 +21,7 @@ export function TemplatesDialog({ action, dayTasks, zone, onClose, onApplied, on
   const [loadingMore, setLoadingMore] = useState(false);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
+  const [applyingId, setApplyingId] = useState<string | null>(null);
   const [error, setError] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [name, setName] = useState(action.mode === "save" && action.date ? `${dayName(action.date).split(",")[0]} routine` : "");
@@ -60,7 +61,7 @@ export function TemplatesDialog({ action, dayTasks, zone, onClose, onApplied, on
     setError(""); setMode("editor");
   }
   async function save(event: FormEvent) {
-    event.preventDefault(); setBusy(true); setError("");
+    event.preventDefault(); if (busy) return; setBusy(true); setError("");
     try {
       const cleaned = items.filter((item) => item.title.trim()).map((item) => ({ ...item, title: item.title.trim() }));
       const saved = editingId ? await taskTemplateApi.update(editingId, name, cleaned) : await taskTemplateApi.create(name, cleaned);
@@ -71,21 +72,23 @@ export function TemplatesDialog({ action, dayTasks, zone, onClose, onApplied, on
     finally { setBusy(false); }
   }
   async function remove(id: string) {
+    if (busy) return;
     setBusy(true); setError("");
     try { await taskTemplateApi.remove(id); setTemplates((current) => current.filter((item) => item.id !== id)); setConfirmDelete(null); onSaved("Template deleted"); }
     catch (cause) { setError(errorMessage(cause)); }
     finally { setBusy(false); }
   }
   async function apply(id: string) {
-    if (!action.date) return;
-    setBusy(true); setError("");
+    if (busy || !action.date) return;
+    setApplyingId(id); setBusy(true); setError("");
     try { await taskTemplateApi.apply(id, action.date); onApplied(); onClose(); }
     catch (cause) { setError(errorMessage(cause)); }
-    finally { setBusy(false); setConfirmApply(null); }
+    finally { setBusy(false); setApplyingId(null); setConfirmApply(null); }
   }
   const title = mode === "editor" ? (editingId ? "Edit template" : action.mode === "save" ? "Save day as template" : "New template")
     : mode === "apply" ? `Apply to ${action.date ? dayName(action.date) : "day"}` : "Templates";
-  return <Dialog title={title} onClose={onClose} className="wk-template-dialog">
+  return <Dialog busy={busy} title={title} onClose={onClose} className="wk-template-dialog">
+    <fieldset className="wk-template-controls" disabled={busy} aria-label="Template controls">
     {error && <p className="wk-task-error" role="alert">{error}</p>}
     {mode === "editor" ? <form className="wk-template-editor" onSubmit={(event) => void save(event)}>
       <label>Template name <input value={name} maxLength={80} required autoFocus onChange={(event) => setName(event.target.value)} placeholder="Monday routine" /></label>
@@ -97,31 +100,32 @@ export function TemplatesDialog({ action, dayTasks, zone, onClose, onApplied, on
             onChange={(event) => setItems((current) => current.map((entry, position) => position === index ? {
               ...entry, plannedTime: event.target.value || null, timeZoneId: event.target.value ? entry.timeZoneId ?? zone : null
             } : entry))} />
-          <button type="button" aria-label={`Remove task ${index + 1}`} onClick={() => setItems((current) => current.filter((_, position) => position !== index))}><Trash2 size={16} /></button>
+          <button type="button" aria-label={`Remove task ${index + 1}`} onClick={() => setItems((current) => current.filter((_, position) => position !== index))}><Trash2 size={16} aria-hidden="true" /></button>
         </div>)}
         <Button variant="quiet" size="compact" onClick={() => setItems((current) => [...current, { title: "", description: null, plannedTime: null, timeZoneId: null }])}
-          disabled={items.length >= 50}><Plus size={16} /> Add task</Button>
+          disabled={items.length >= 50}><Plus size={16} aria-hidden="true" /> Add task</Button>
       </div>
-      <div className="wk-dialog-actions"><Button type="submit" disabled={busy || !name.trim() || !items.some((item) => item.title.trim())}>Save template</Button>
+      <div className="wk-dialog-actions"><Button type="submit" loading={busy} disabled={!name.trim() || !items.some((item) => item.title.trim())}>Save template</Button>
         <Button variant="secondary" onClick={() => action.mode === "save" ? onClose() : setMode(action.mode === "apply" ? "apply" : "list")}>Cancel</Button></div>
     </form> : <div className="wk-template-list">
       {loading && <p role="status">Loading templates…</p>}
       {!loading && templates.length === 0 && <p className="wk-template-empty">No templates yet. Save a day or make a routine to reuse later.</p>}
       {templates.map((template) => <div className="wk-template-entry" key={template.id}>
         <div><strong>{template.name}</strong><small>{template.items.length} {template.items.length === 1 ? "task" : "tasks"}</small></div>
-        {mode === "apply" ? <Button variant="secondary" size="compact" disabled={busy} onClick={() => dayTasks.length ? setConfirmApply(template.id) : void apply(template.id)}>Apply</Button>
-          : <div className="wk-template-entry-actions"><button aria-label={`Edit ${template.name}`} onClick={() => edit(template)}><Pencil size={16} /></button>
-            <button aria-label={`Delete ${template.name}`} onClick={() => setConfirmDelete(template.id)}><Trash2 size={16} /></button></div>}
+        {mode === "apply" ? <Button variant="secondary" size="compact" loading={applyingId === template.id} onClick={() => dayTasks.length ? setConfirmApply(template.id) : void apply(template.id)}>Apply</Button>
+          : <div className="wk-template-entry-actions"><button aria-label={`Edit ${template.name}`} onClick={() => edit(template)}><Pencil size={16} aria-hidden="true" /></button>
+            <button aria-label={`Delete ${template.name}`} onClick={() => setConfirmDelete(template.id)}><Trash2 size={16} aria-hidden="true" /></button></div>}
       </div>)}
       {hasMore && <Button variant="secondary" size="compact" disabled={loadingMore} onClick={() => void loadMore()}>{loadingMore ? "Loading…" : "Load more templates"}</Button>}
       {confirmApply && <div className="wk-template-confirm"><p>This day has {dayTasks.length} existing {dayTasks.length === 1 ? "task" : "tasks"}. Add the template tasks alongside them?</p>
-        <div className="wk-dialog-actions"><Button disabled={busy} onClick={() => void apply(confirmApply)}>Add tasks</Button>
+        <div className="wk-dialog-actions"><Button loading={busy} onClick={() => void apply(confirmApply)}>Add tasks</Button>
           <Button variant="secondary" onClick={() => setConfirmApply(null)}>Cancel</Button></div></div>}
       {confirmDelete && <div className="wk-template-confirm"><p>Delete “{templates.find((item) => item.id === confirmDelete)?.name}”? Tasks already created from it will stay.</p>
-        <div className="wk-dialog-actions"><Button variant="danger" disabled={busy} onClick={() => void remove(confirmDelete)}>Delete template</Button>
+        <div className="wk-dialog-actions"><Button variant="danger" loading={busy} onClick={() => void remove(confirmDelete)}>Delete template</Button>
           <Button variant="secondary" onClick={() => setConfirmDelete(null)}>Cancel</Button></div></div>}
-      <div className="wk-dialog-actions"><Button variant="secondary" onClick={() => edit()}><Plus size={16} /> New template</Button>
+      <div className="wk-dialog-actions"><Button variant="secondary" onClick={() => edit()}><Plus size={16} aria-hidden="true" /> New template</Button>
         <Button variant="quiet" onClick={onClose}>Close</Button></div>
     </div>}
+    </fieldset>
   </Dialog>;
 }

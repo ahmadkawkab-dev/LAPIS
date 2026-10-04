@@ -26,7 +26,7 @@
   border-radius: 50%;
   color: var(--collaborator-on-color);
   background: var(--collaborator-color);
-  font-size: .6875rem;
+  font-size: var(--text-meta);
   font-weight: 700;
   letter-spacing: .02em;
 }
@@ -112,7 +112,7 @@
   border-radius: 50%;
   color: var(--collaborator-on-color);
   background: var(--collaborator-color);
-  font-size: .5625rem;
+  font-size: var(--text-meta);
   font-weight: 700;
 }
 .wk-note-editing small { overflow: hidden; color: var(--muted-foreground); font-size: .75rem; text-overflow: ellipsis; white-space: nowrap; }

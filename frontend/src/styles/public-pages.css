@@ -94,7 +94,7 @@
 
 .wk-legal { width: min(100% - 3rem, 48rem); margin: var(--space-10) auto var(--space-12); }
 .wk-legal-heading { padding-block-end: var(--space-6); border-block-end: 1px solid var(--border); }
-.wk-legal-heading h1 { font-size: clamp(2.25rem, 5vw, 3.75rem); }
+.wk-legal-heading h1 { font-size: var(--text-page-title); }
 .wk-legal-heading > p:not(.wk-public-eyebrow) { color: var(--muted-foreground); }
 .wk-legal-date { font-size: var(--text-meta); }
 .wk-legal section { margin-block-start: var(--space-8); }

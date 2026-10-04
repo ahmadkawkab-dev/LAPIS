@@ -1,3 +1,4 @@
+import { LoadingSkeleton } from "../../components/ui/LoadingSkeleton";
 import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent, type KeyboardEvent, type MouseEvent } from "react";
 import { ChevronLeft, ChevronRight, Plus } from "lucide-react";
 import { calendarApi, errorMessage, planningSettingsApi, taskApi, type CalendarEventDto, type CalendarItemDto, type PersonalTaskDto } from "../../api";
@@ -228,6 +229,7 @@ export function CalendarPage({ notify, navigate }: {
     finally { setActionBusy(false); }
   }
   const onDay = (day: string) => { setSelectedDate(day); if (!window.matchMedia("(max-width: 700px)").matches) setView("agenda"); };
+  const currentDate = dateInZone(new Date(), zone);
   const agendaDays = days.filter((day) => day === selectedDate || (dayItems.get(day)?.length ?? 0) > 0);
   return <div className="wk-calendar-page">
     <header className="wk-calendar-header">
@@ -237,8 +239,8 @@ export function CalendarPage({ notify, navigate }: {
         <Button size="compact" onClick={() => newEvent()}><Plus size={15} aria-hidden="true" /> New event</Button></div>
     </header>
     <div className="wk-calendar-toolbar">
-      <div className="wk-calendar-paging"><IconButton label="Previous month" onClick={() => moveMonth(-1)}><ChevronLeft size={17} /></IconButton>
-        <IconButton label="Next month" onClick={() => moveMonth(1)}><ChevronRight size={17} /></IconButton>
+      <div className="wk-calendar-paging"><IconButton label="Previous month" onClick={() => moveMonth(-1)}><ChevronLeft size={17} aria-hidden="true" /></IconButton>
+        <IconButton label="Next month" onClick={() => moveMonth(1)}><ChevronRight size={17} aria-hidden="true" /></IconButton>
         <strong>{dayLabel(month, { month: "long", year: "numeric" })}</strong></div>
       <div className="wk-calendar-view-switch" aria-label="Calendar view">
         <button className={view === "month" ? "wk-calendar-view--active" : ""} aria-pressed={view === "month"} onClick={() => setView("month")}>Month</button>
@@ -246,7 +248,7 @@ export function CalendarPage({ notify, navigate }: {
       </div>
     </div>
     {error && <div className="wk-calendar-load-error" role="alert"><p>{error}</p><Button variant="secondary" onClick={() => ready ? void load() : void loadPlanning()}>Try again</Button></div>}
-    {(loading || !ready && !error) && <p role="status" className="wk-calendar-status">Loading calendar…</p>}
+    {(!error && (loading || !ready)) && <LoadingSkeleton layout={view === "month" ? "calendar" : "list"} label="Loading calendar…" />}
     {scheduleError && <div className="wk-calendar-load-error" role="alert"><p>{scheduleError}</p><Button variant="quiet" onClick={() => setScheduleError("")}>Dismiss</Button></div>}
     {ready && <div className="wk-calendar-body"><div className="wk-calendar-rail">
       <div className="wk-calendar-mini" aria-label="Choose a date">
@@ -254,7 +256,7 @@ export function CalendarPage({ notify, navigate }: {
         <div className="wk-calendar-mini-grid">{["M", "T", "W", "T", "F", "S", "S"].map((day, index) => <span key={index}>{day}</span>)}
           {days.map((day) => <button key={day} className={day === selectedDate ? "wk-calendar-mini-selected" : ""}
             aria-label={dayLabel(day, { weekday: "long", month: "long", day: "numeric" })}
-            aria-current={day === selectedDate ? "date" : undefined}
+            aria-current={day === currentDate ? "date" : undefined} aria-pressed={day === selectedDate}
             onClick={() => { setSelectedDate(day); if (day.slice(0, 7) !== month.slice(0, 7)) setMonth(`${day.slice(0, 7)}-01`); }}>{Number(day.slice(-2))}</button>)}</div>
       </div>
       <CalendarTaskTray tasks={inboxTasks} hasMore={inboxHasMore} loading={inboxLoading} error={inboxError}
@@ -268,8 +270,8 @@ export function CalendarPage({ notify, navigate }: {
         <div className="wk-calendar-grid">{days.map((day) => {
           const entries = dayItems.get(day) ?? [];
           return <section key={day} onDragOver={(event) => overDay(event, day)} onDragLeave={() => { if (dropDate === day) setDropDate(null); }} onDrop={(event) => dropOnDay(event, day)}
-            className={`wk-calendar-day${day.slice(0, 7) === month.slice(0, 7) ? "" : " wk-calendar-day--outside"}${day === selectedDate ? " wk-calendar-day--selected" : ""}${dropDate === day ? " wk-calendar-day--drop" : ""}`}>
-            <button className="wk-calendar-day-number" aria-label={`${dayLabel(day, { weekday: "long", month: "long", day: "numeric" })}, ${entries.length} items`} onClick={() => onDay(day)}>{Number(day.slice(-2))}</button>
+            className={`wk-calendar-day${day.slice(0, 7) === month.slice(0, 7) ? "" : " wk-calendar-day--outside"}${day === currentDate ? " wk-calendar-day--today" : ""}${day === selectedDate ? " wk-calendar-day--selected" : ""}${dropDate === day ? " wk-calendar-day--drop" : ""}`}>
+            <button className="wk-calendar-day-number" aria-current={day === currentDate ? "date" : undefined} aria-pressed={day === selectedDate} aria-label={`${dayLabel(day, { weekday: "long", month: "long", day: "numeric" })}, ${entries.length} items`} onClick={() => onDay(day)}>{Number(day.slice(-2))}{day === currentDate && <span className="wk-sr-only">, Today</span>}</button>
             <div className="wk-calendar-day-items">{entries.slice(0, 3).map((item) => <button key={`${item.source}-${item.id}`} className={`wk-calendar-item wk-calendar-item--${item.source}`}
               onContextMenu={(event) => onItemContextMenu(event, item)} aria-keyshortcuts="Shift+F10"
               onKeyDown={(event) => onItemActionKey(event, item)}
@@ -283,7 +285,7 @@ export function CalendarPage({ notify, navigate }: {
         })}</div>
         <section className="wk-calendar-mobile-agenda" aria-label="Selected day">
           <div className="wk-calendar-mobile-agenda-heading"><h2>{dayLabel(selectedDate, { weekday: "long", month: "long", day: "numeric" })}</h2>
-            <Button variant="quiet" size="compact" onClick={() => newEvent(selectedDate)}><Plus size={14} /> Add event</Button></div>
+            <Button variant="quiet" size="compact" onClick={() => newEvent(selectedDate)}><Plus size={14} aria-hidden="true" /> Add event</Button></div>
           <p>{(dayItems.get(selectedDate) ?? []).length} items</p>
           {(dayItems.get(selectedDate) ?? []).length ? <ul>{(dayItems.get(selectedDate) ?? []).map((item) =>
             <li key={`${item.source}-${item.id}`}><button onClick={() => void openItem(item)}
@@ -318,7 +320,7 @@ export function CalendarPage({ notify, navigate }: {
     </div></div>}
     {scheduleDialog && <TaskScheduleDialog key={scheduleDialog.id} title={scheduleDialog.title} initialDate={scheduleDialog.initialDate}
       isTimed={scheduleDialog.isTimed} onSchedule={(date) => scheduleTask(scheduleDialog.id, date)} onClose={() => setScheduleDialog(null)} />}
-    {actionItem && <Dialog title={actionConfirmDelete ? `Delete ${actionItem.source}?` : actionItem.title}
+    {actionItem && <Dialog busy={actionBusy} title={actionConfirmDelete ? `Delete ${actionItem.source}?` : actionItem.title}
       onClose={() => { if (!actionBusy) closeActions(); }} urgent={actionConfirmDelete}>
       <p>{actionConfirmDelete ? `“${actionItem.title}” will be removed.` : `Choose an action for this ${actionItem.source}.`}</p>
       {actionError && <p className="wk-calendar-load-error" role="alert">{actionError}</p>}
