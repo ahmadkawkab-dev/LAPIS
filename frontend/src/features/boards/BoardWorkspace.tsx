@@ -139,6 +139,16 @@ function WorkspaceContent({
     [notes, setNotes] = useState<NoteDto[]>([]),
     [edges, setEdges] = useState<ConnectionDto[]>([]),
     [members, setMembers] = useState<MemberDto[]>([]);
+  const linkedNote = useRef<string | null>(null);
+  useEffect(() => {
+    const linked = () => {
+      const noteId = new URLSearchParams(window.location.search).get("note");
+      if (noteId && linkedNote.current !== noteId && notes.some(note => note.id === noteId)) { linkedNote.current = noteId; editor.select(noteId);
+        requestAnimationFrame(() => document.querySelector<HTMLElement>(`[data-note-id="${noteId}"]`)?.scrollIntoView({ block: "center", inline: "center" })); }
+    };
+    linked(); window.addEventListener("wukna:navigation", linked); window.addEventListener("popstate", linked);
+    return () => { window.removeEventListener("wukna:navigation", linked); window.removeEventListener("popstate", linked); };
+  }, [notes, editor]);
   const [loading, setLoading] = useState(true),
     [failure, setFailure] = useState(""),
     [editTitleId, setEditTitleId] = useState<string | null>(null),

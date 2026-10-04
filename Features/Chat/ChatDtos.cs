@@ -6,7 +6,9 @@ using System.Text.Json;
 using Microsoft.Extensions.Options;
 using Wukna.Features.Users;
 
-public sealed record SendChatMessageRequest(Guid ClientMessageId, string? Body)
+public sealed record ChatMentionDto(Guid UserId, int Start, int Length);
+public sealed record SendChatMessageRequest(Guid ClientMessageId, string? Body,
+    ChatMentionDto[]? Mentions = null, Guid? ReplyToMessageId = null, bool NotifyReplyAuthor = true)
 {
     public static async ValueTask<SendChatMessageRequest?> BindAsync(HttpContext context, ParameterInfo _)
         => await ChatBoundedJson.ReadAsync<SendChatMessageRequest>(context);
@@ -58,7 +60,8 @@ public sealed record ScheduledChatTaskDto(string Title, string? Description,
     DateTimeOffset StartsAtUtc, DateTimeOffset? EndsAtUtc, string TimeZoneId, int OriginalOffsetMinutes);
 public sealed record ChatMessageDto(Guid Id, Guid BoardId, string Sequence, string Cursor,
     string Type, string? Body, DateTimeOffset CreatedAt, Guid ClientMessageId, ChatSenderDto Sender,
-    ChatAttachmentDto? Attachment, ScheduledChatTaskDto? ScheduledTask)
+    ChatAttachmentDto? Attachment, ScheduledChatTaskDto? ScheduledTask,
+    IReadOnlyList<ChatMentionDto>? Mentions = null, Guid? ReplyToMessageId = null, bool NotifyReplyAuthor = false)
 {
     public static ChatMessageDto From(ChatMessage message, ChatCursorCodec cursors) => new(
         message.Id, message.BoardId, message.Sequence.ToString(CultureInfo.InvariantCulture),
@@ -77,7 +80,8 @@ public sealed record ChatMessageDto(Guid Id, Guid BoardId, string Sequence, stri
             attachment.OriginalFileName, attachment.ContentType, attachment.ByteSize,
             attachment.Width, attachment.Height, attachment.ScanStatus.ToString()) : null,
         message.ScheduledTask is { } task ? new ScheduledChatTaskDto(task.Title, task.Description,
-            task.StartsAtUtc, task.EndsAtUtc, task.TimeZoneId, task.OriginalOffsetMinutes) : null);
+            task.StartsAtUtc, task.EndsAtUtc, task.TimeZoneId, task.OriginalOffsetMinutes) : null,
+        JsonSerializer.Deserialize<ChatMentionDto[]>(message.MentionsJson), message.ReplyToMessageId, message.NotifyReplyAuthor);
 }
 public sealed record ChatHistoryPageDto(IReadOnlyList<ChatMessageDto> Items,
     string? OlderCursor, string NewerCursor, bool HasMore, string CatchUpThrough, DateTimeOffset ServerTime);

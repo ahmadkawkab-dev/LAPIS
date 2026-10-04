@@ -20,6 +20,7 @@ public sealed class ChatMessageConfiguration : IEntityTypeConfiguration<ChatMess
         entity.HasKey(message => message.Id);
         entity.Property(message => message.Body).HasMaxLength(4000);
         entity.Property(message => message.RequestFingerprint).HasMaxLength(64).IsRequired();
+        entity.Property(message => message.MentionsJson).HasColumnType("jsonb").HasDefaultValue("[]");
         entity.Property(message => message.CreatedAt).HasDefaultValueSql("now()");
         entity.HasIndex(message => new { message.BoardId, message.Sequence }).IsUnique();
         entity.HasIndex(message => new { message.BoardId, message.SenderUserId, message.ClientMessageId }).IsUnique();

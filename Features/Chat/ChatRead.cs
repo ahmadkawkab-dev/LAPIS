@@ -19,7 +19,7 @@ public static class ChatRead
             message.BoardId == boardId && message.Sequence > afterSequence && message.SenderUserId != userId, ct);
 
     public static async Task<IResult> Update(Guid boardId, SetChatReadRequest request,
-        HttpContext context, WuknaDbContext db, ChatCursorCodec cursors, CancellationToken ct)
+        HttpContext context, WuknaDbContext db, ChatCursorCodec cursors, TimeProvider clock, CancellationToken ct)
     {
         if (!ChatAccess.TryGetUserId(context, out var userId)) return Results.Unauthorized();
         await using var transaction = await db.Database.BeginTransactionAsync(ct);
@@ -38,6 +38,13 @@ public static class ChatRead
         if (sequence > state.LastReadSequence)
         {
             state.LastReadSequence = sequence;
+            await db.SaveChangesAsync(ct);
+            await db.Notifications.Where(item => item.UserId == userId && item.BoardId == boardId &&
+                item.MembershipInstanceId == state.MembershipInstanceId && item.Type == Wukna.Features.Notifications.NotificationType.ChatActivity &&
+                item.LastChatSequence <= sequence && item.ReadRevision < item.Revision)
+                .ExecuteUpdateAsync(setters => setters.SetProperty(item => item.ReadRevision, item => item.Revision)
+                    .SetProperty(item => item.ReadAt, clock.GetUtcNow()), ct);
+            Wukna.Features.Notifications.NotificationSources.StateChanged(db, userId, clock.GetUtcNow());
             await db.SaveChangesAsync(ct);
         }
         var unread = await CountUnreadAsync(db, boardId, userId, state.LastReadSequence, ct);

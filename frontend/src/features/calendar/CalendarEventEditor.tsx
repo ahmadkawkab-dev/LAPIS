@@ -1,3 +1,4 @@
+import { CalendarReminderPanel } from "./CalendarReminderPanel";
 import { useState, type FormEvent } from "react";
 import { calendarApi, errorMessage, type CalendarEventDto } from "../../api";
 import { addDays } from "../../date";
@@ -61,6 +62,7 @@ export function CalendarEventEditor({ event, date, zone, onClose, onSaved, onDel
         {timeZoneOptions}</>}
       <label>Location <input value={location} maxLength={200} onChange={(change) => setLocation(change.target.value)} /></label>
       <label>Description <textarea value={description} maxLength={4000} rows={3} onChange={(change) => setDescription(change.target.value)} /></label>
+      {event?.sourceChatMessageId && !isAllDay && <CalendarReminderPanel eventId={event.id} />}
       {error && <p className="wk-calendar-error" role="alert">{error}</p>}
       <div className="wk-dialog-actions"><Button type="submit" disabled={busy || !title.trim()}>{event ? "Save changes" : "Create event"}</Button>
         {event && <Button variant="quiet" disabled={busy} onClick={() => setConfirmDelete(true)}>Delete</Button>}

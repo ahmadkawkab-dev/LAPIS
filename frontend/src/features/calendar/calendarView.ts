@@ -31,7 +31,7 @@ function itemSpan(item: CalendarItemDto, zone: string): { first: string; last: s
       ? { first: item.startDate, last: addDays(item.endDateExclusive, -1) } : null;
   if (!item.startAtUtc) return null;
   const first = dateInZone(new Date(item.startAtUtc), zone);
-  if (item.scheduleKind === "timedTask") return { first, last: first };
+  if (item.scheduleKind === "timedTask" || !item.endAtUtc) return { first, last: first };
   return { first, last: dateInZone(new Date(Date.parse(item.endAtUtc!) - 1), zone) };
 }
 

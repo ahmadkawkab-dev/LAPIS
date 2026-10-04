@@ -4,6 +4,8 @@ using System.Globalization;
 using System.IdentityModel.Tokens.Jwt;
 using System.Text.RegularExpressions;
 using Wukna.Features.Board;
+using Wukna.Features.Chat;
+using Wukna.Features.Notifications;
 using Wukna.Features.Realtime;
 using Wukna.Shared.Data.AppDbContext;
 using Microsoft.EntityFrameworkCore;
@@ -94,11 +96,14 @@ public static class NoteEndpoints
 
         group.MapPost("/", async (Guid boardId, CreateNoteRequest request,
             HttpContext context, WuknaDbContext db, BoardActivity activity,
-            BoardRealtimeDispatcher realtime,
+            BoardRealtimeDispatcher realtime, TimeProvider clock,
             CancellationToken cancellationToken) =>
         {
             if (!TryGetUserId(context, out var userId)) return Results.Unauthorized();
-            var access = await GetAccessAsync(db, boardId, userId, cancellationToken);
+            await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
+            if (!await BoardMembershipLocks.LockBoardAsync(db, boardId, cancellationToken)) return Results.NotFound();
+            var member = await ChatAccess.LockMembershipAsync(db, boardId, userId, cancellationToken);
+            var access = member is null ? null : new BoardAccess(member.Role == BoardRole.Owner || member.CanEdit);
             if (access is null) return Results.NotFound();
             if (!access.CanEdit) return Results.Forbid();
 
@@ -147,8 +152,11 @@ public static class NoteEndpoints
             };
             BoardWorkspaceBounds.Constrain(note);
             db.Notes.Add(note);
+            await NotificationSources.BoardAsync(db, boardId, userId, NotificationType.SharedBoardActivity,
+                "noteCreated", "note", note.Id, $"note-created:{note.Id:N}", clock.GetUtcNow(), cancellationToken);
             activity.MarkUpdated(db, boardId);
             await db.SaveChangesAsync(cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
             SetEtag(context, note.Version);
             var response = NoteDto.From(note);
             await realtime.NoteCreatedAsync(response);
@@ -158,11 +166,14 @@ public static class NoteEndpoints
         group.MapPatch("/{noteId:guid}", async (Guid boardId, Guid noteId,
             PatchNoteRequest request, HttpContext context, WuknaDbContext db,
             BoardActivity activity,
-            BoardRealtimeDispatcher realtime,
+            BoardRealtimeDispatcher realtime, TimeProvider clock,
             CancellationToken cancellationToken) =>
         {
             if (!TryGetUserId(context, out var userId)) return Results.Unauthorized();
-            var access = await GetAccessAsync(db, boardId, userId, cancellationToken);
+            await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
+            if (!await BoardMembershipLocks.LockBoardAsync(db, boardId, cancellationToken)) return Results.NotFound();
+            var member = await ChatAccess.LockMembershipAsync(db, boardId, userId, cancellationToken);
+            var access = member is null ? null : new BoardAccess(member.Role == BoardRole.Owner || member.CanEdit);
             if (access is null) return Results.NotFound();
             if (!access.CanEdit) return Results.Forbid();
             var versionError = ReadVersion(context, out var version);
@@ -186,6 +197,8 @@ public static class NoteEndpoints
                 request.PositionY is not null && !double.IsFinite(request.PositionY.Value))
                 return BadRequest("invalid_note_position");
 
+            var previousCompleted = note.IsCompleted;
+            var previousTitle = note.Title; var previousContent = note.Content;
             if (request.Title is not null) note.Title = request.Title.Trim();
             if (request.Content is not null) note.Content = request.Content;
             if (request.PositionX is not null) note.PositionX = request.PositionX;
@@ -203,6 +216,11 @@ public static class NoteEndpoints
             var changed = db.Entry(note).Properties.Any(property => property.IsModified);
             if (changed)
                 activity.MarkUpdated(db, boardId);
+            if (previousCompleted != note.IsCompleted || previousTitle != note.Title || previousContent != note.Content)
+                await NotificationSources.BoardAsync(db, boardId, userId,
+                    previousCompleted != note.IsCompleted ? NotificationType.TaskActivity : NotificationType.SharedBoardActivity,
+                    previousCompleted != note.IsCompleted ? (note.IsCompleted ? "taskCompleted" : "taskReopened") : "noteEdited",
+                    "note", note.Id, $"note-updated:{note.Id:N}:{version}", clock.GetUtcNow(), cancellationToken);
 
             try
             {
@@ -213,6 +231,7 @@ public static class NoteEndpoints
                 return VersionConflict();
             }
 
+            await transaction.CommitAsync(cancellationToken);
             SetEtag(context, note.Version);
             var response = NoteDto.From(note);
             if (changed) await realtime.NoteUpdatedAsync(response);
@@ -221,11 +240,14 @@ public static class NoteEndpoints
 
         group.MapDelete("/{noteId:guid}", async (Guid boardId, Guid noteId,
             HttpContext context, WuknaDbContext db, BoardActivity activity,
-            BoardRealtimeDispatcher realtime,
+            BoardRealtimeDispatcher realtime, TimeProvider clock,
             CancellationToken cancellationToken) =>
         {
             if (!TryGetUserId(context, out var userId)) return Results.Unauthorized();
-            var access = await GetAccessAsync(db, boardId, userId, cancellationToken);
+            await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
+            if (!await BoardMembershipLocks.LockBoardAsync(db, boardId, cancellationToken)) return Results.NotFound();
+            var member = await ChatAccess.LockMembershipAsync(db, boardId, userId, cancellationToken);
+            var access = member is null ? null : new BoardAccess(member.Role == BoardRole.Owner || member.CanEdit);
             if (access is null) return Results.NotFound();
             if (!access.CanEdit) return Results.Forbid();
             var versionError = ReadVersion(context, out var version);
@@ -241,6 +263,8 @@ public static class NoteEndpoints
                 return Results.Conflict(new { error = "note_has_checklist_items" });
 
             db.Notes.Remove(note);
+            await NotificationSources.BoardAsync(db, boardId, userId, NotificationType.SharedBoardActivity,
+                "noteDeleted", "board", boardId, $"note-deleted:{note.Id:N}", clock.GetUtcNow(), cancellationToken);
             activity.MarkUpdated(db, boardId);
             var deletedVersion = note.Version;
             try
@@ -251,6 +275,7 @@ public static class NoteEndpoints
             {
                 return VersionConflict();
             }
+            await transaction.CommitAsync(cancellationToken);
             await realtime.NoteDeletedAsync(new NoteDeletedEvent(
                 boardId, noteId, deletedVersion));
             return Results.NoContent();

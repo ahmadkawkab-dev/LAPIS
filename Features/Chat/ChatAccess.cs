@@ -9,14 +9,18 @@ public static class ChatAccess
 {
     public static async Task<BoardMemberChatState> LockStateAsync(WuknaDbContext db, Guid boardId, Guid userId, CancellationToken ct)
     {
+        // Other domain sources can initialize offline members concurrently. Upsert before
+        // locking rather than tracking a new row that might collide at the later message save.
+        await db.Database.ExecuteSqlInterpolatedAsync($"""
+            INSERT INTO board_member_chat_states
+              (board_id, user_id, membership_instance_id, is_muted, moderation_revision, cooldown_settings_revision, last_read_sequence)
+            VALUES ({boardId}, {userId}, gen_random_uuid(), FALSE, 0, 0, 0)
+            ON CONFLICT (board_id, user_id) DO NOTHING
+            """, ct);
         var states = await db.BoardMemberChatStates.FromSqlInterpolated($"""
             SELECT * FROM board_member_chat_states WHERE board_id = {boardId} AND user_id = {userId} FOR UPDATE
-            """).ToListAsync(ct);
-        if (states.SingleOrDefault() is { } existing) return existing;
-        var state = new BoardMemberChatState { BoardId = boardId, UserId = userId };
-        db.BoardMemberChatStates.Add(state);
-        await db.SaveChangesAsync(ct);
-        return state;
+            """).ToArrayAsync(ct);
+        return states.Single();
     }
     public static bool TryGetUserId(HttpContext context, out Guid userId) =>
         Guid.TryParse(context.User.FindFirst(JwtRegisteredClaimNames.Sub)?.Value, out userId);

@@ -20,7 +20,7 @@ export function ChatWorkspace({ boardId, userId, boardTitle, host }: {
   const [controller] = useState(() => new ChatController(boardId, userId, chatApi, createChatTransport,
     { storage: draftStorage() }));
   const snapshot = useSyncExternalStore(controller.subscribe, controller.getSnapshot);
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(() => new URLSearchParams(window.location.search).get("chat") === "1");
   const toggle = useRef<HTMLButtonElement>(null);
   const scroll = useRef<ChatScrollPosition>({ top: 0, latest: true, initialized: false });
   const media = useMemo(() => window.matchMedia("(max-width: 900px)"), []);
@@ -45,6 +45,22 @@ export function ChatWorkspace({ boardId, userId, boardTitle, host }: {
       document.removeEventListener("visibilitychange", refresh);
       controller.stop();
     };
+  }, [controller]);
+
+  useEffect(() => {
+    const navigate = () => {
+      const params = new URLSearchParams(window.location.search), messageId = params.get("message");
+      if (params.get("chat") !== "1") return;
+      setOpen(true);
+      if (messageId && /^[0-9a-f-]{36}$/i.test(messageId)) {
+        scroll.current = { top: 0, latest: false, initialized: false };
+        void controller.focusMessage(messageId).then(() => requestAnimationFrame(() => {
+          document.querySelector<HTMLElement>(`[data-chat-message="${messageId}"]`)?.scrollIntoView({ block: "center" });
+        }));
+      }
+    };
+    navigate(); window.addEventListener("wukna:navigation", navigate); window.addEventListener("popstate", navigate);
+    return () => { window.removeEventListener("wukna:navigation", navigate); window.removeEventListener("popstate", navigate); };
   }, [controller]);
 
   function close() {

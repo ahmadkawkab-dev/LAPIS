@@ -89,6 +89,22 @@ export function CalendarPage({ notify, navigate }: {
     } catch (cause) { if (id === requestId.current) setError(errorMessage(cause)); }
     finally { if (id === requestId.current) setLoading(false); }
   }, [ready, from, to, zone]);
+  useEffect(() => {
+    if (!ready) return;
+    let active = true;
+    const openLinked = () => {
+      const id = new URLSearchParams(window.location.search).get("event");
+      if (!id || !/^[0-9a-f-]{36}$/i.test(id)) return;
+      void calendarApi.getEvent(id).then(event => {
+        if (!active) return;
+        const date = event.localStart?.slice(0, 10) ?? event.allDayStartDate;
+        if (date) { setSelectedDate(date); setMonth(`${date.slice(0, 7)}-01`); }
+        setActiveEvent(event); setEditorOpen(true);
+      }).catch(cause => { if (active) setError(errorMessage(cause)); });
+    };
+    openLinked(); window.addEventListener("wukna:navigation", openLinked); window.addEventListener("popstate", openLinked);
+    return () => { active = false; window.removeEventListener("wukna:navigation", openLinked); window.removeEventListener("popstate", openLinked); };
+  }, [ready]);
   async function loadMoreCalendar() {
     if (!hasMore || loadingMore) return;
     const id = requestId.current;

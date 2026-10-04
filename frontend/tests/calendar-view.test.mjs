@@ -53,3 +53,12 @@ test('all-day end is exclusive and timed event overlaps visible dates', () => {
   const buckets = itemsByDay([allDay, timed], ['2026-09-30', '2026-10-01', '2026-10-02'], 'UTC');
   assert.deepEqual([...buckets.values()].map((entries) => entries.length), [2, 2, 0]);
 });
+
+test('start-only imported chat events appear only on their start day in the viewer zone', () => {
+  const event = item('timedEvent', null, null, '2026-10-09T23:30:00Z', null);
+  assert.equal(itemOccursOn(event, '2026-10-09', 'UTC'), true);
+  assert.equal(itemOccursOn(event, '2026-10-10', 'UTC'), false);
+  assert.equal(itemOccursOn(event, '2026-10-10', 'Asia/Beirut'), true);
+  assert.deepEqual([...itemsByDay([event], ['2026-10-09', '2026-10-10'], 'UTC').values()]
+    .map(entries => entries.length), [1, 0]);
+});

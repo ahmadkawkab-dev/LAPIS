@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent, type MouseEvent } from "react";
+import { notificationUnread, subscribeNotificationUnread, chatUnreadCounts } from "../../features/notifications/notificationState";
+import { useSyncExternalStore, useEffect, useRef, useState, type FormEvent, type KeyboardEvent, type MouseEvent } from "react";
 import { Bell, Boxes, CalendarDays, CheckSquare, Home, Inbox, LayoutDashboard, PanelLeftClose, PanelLeftOpen, Plus, Search, Settings2 } from "lucide-react";
 import type { BoardListItemDto } from "../../api";
 import { errorMessage } from "../../api";
@@ -30,6 +31,8 @@ export function Sidebar({
   const [createError, setCreateError] = useState("");
   const [search, setSearch] = useState("");
   const searchRef = useRef<HTMLInputElement>(null);
+  const chatUnread = useSyncExternalStore(subscribeNotificationUnread, chatUnreadCounts);
+  const unread = useSyncExternalStore(subscribeNotificationUnread, notificationUnread);
   const path = window.location.pathname;
   const visibleBoards = boards.filter((board) => board.title.toLocaleLowerCase().includes(search.trim().toLocaleLowerCase()));
   const owned = visibleBoards.filter((board) => board.role === 1);
@@ -90,7 +93,7 @@ export function Sidebar({
       aria-current={activeBoardId === board.id ? "page" : undefined}
       aria-keyshortcuts={board.role === 1 ? "Shift+F10" : undefined}
       title={board.role === 1 ? `${board.title} · Right-click for board actions` : board.title}>
-      <span className="wk-board-dot" aria-hidden="true" /><span>{board.title}</span>
+      <span className="wk-board-dot" aria-hidden="true" /><span className="wk-board-link-title">{board.title}</span>{(chatUnread.get(board.id) ?? 0) > 0 && <span className="wk-nav-badge" aria-label={`${chatUnread.get(board.id)} unread chat messages`}>{chatUnread.get(board.id)! > 99 ? "99+" : chatUnread.get(board.id)}</span>}
     </button>
   );
 
@@ -118,8 +121,8 @@ export function Sidebar({
       <div className="wk-sidebar-primary-links">
         {links.map(({ label, icon: Icon, target, active }) => <button key={target}
           className={`wk-shell-link${active ? " wk-shell-link--active" : ""}`}
-          aria-current={active ? "page" : undefined} aria-label={label} title={label}
-          onClick={() => navigate(target)}><Icon size={16} aria-hidden="true" /><span>{label}</span></button>)}
+          aria-current={active ? "page" : undefined} aria-label={target === "/notifications" && unread ? `${label}, ${unread} unread` : label} title={label}
+          onClick={() => navigate(target)}><Icon size={16} aria-hidden="true" /><span>{label}</span>{target === "/notifications" && unread > 0 && <span className="wk-nav-badge" aria-hidden="true">{unread > 99 ? "99+" : unread}</span>}</button>)}
       </div>
       <div className="wk-sidebar-boards">
         <p>Your boards</p>

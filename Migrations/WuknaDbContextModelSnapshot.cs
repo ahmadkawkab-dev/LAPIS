@@ -314,6 +314,10 @@ namespace Wukna.Migrations
                         .HasColumnType("character varying(200)")
                         .HasColumnName("location");
 
+                    b.Property<Guid?>("SourceChatMessageId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("source_chat_message_id");
+
                     b.Property<DateTimeOffset?>("StartAtUtc")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("start_at_utc");
@@ -342,6 +346,11 @@ namespace Wukna.Migrations
                     b.HasKey("Id")
                         .HasName("pk_calendar_events");
 
+                    b.HasIndex("UserId", "SourceChatMessageId")
+                        .IsUnique()
+                        .HasDatabaseName("ix_calendar_events_user_id_source_chat_message_id")
+                        .HasFilter("source_chat_message_id IS NOT NULL");
+
                     b.HasIndex("UserId", "AllDayStartDate", "AllDayEndDateExclusive")
                         .HasDatabaseName("ix_calendar_events_user_id_all_day_start_date_all_day_end_date");
 
@@ -350,7 +359,7 @@ namespace Wukna.Migrations
 
                     b.ToTable("calendar_events", null, t =>
                         {
-                            t.HasCheckConstraint("ck_calendar_event_schedule", "(is_all_day AND all_day_start_date IS NOT NULL AND all_day_end_date_exclusive IS NOT NULL AND all_day_end_date_exclusive > all_day_start_date AND local_start IS NULL AND local_end IS NULL AND time_zone_id IS NULL AND start_at_utc IS NULL AND end_at_utc IS NULL) OR (NOT is_all_day AND all_day_start_date IS NULL AND all_day_end_date_exclusive IS NULL AND local_start IS NOT NULL AND local_end IS NOT NULL AND local_end > local_start AND time_zone_id IS NOT NULL AND start_at_utc IS NOT NULL AND end_at_utc IS NOT NULL AND end_at_utc > start_at_utc)");
+                            t.HasCheckConstraint("ck_calendar_event_schedule", "(is_all_day AND all_day_start_date IS NOT NULL AND all_day_end_date_exclusive IS NOT NULL AND all_day_end_date_exclusive > all_day_start_date AND local_start IS NULL AND local_end IS NULL AND time_zone_id IS NULL AND start_at_utc IS NULL AND end_at_utc IS NULL) OR (NOT is_all_day AND all_day_start_date IS NULL AND all_day_end_date_exclusive IS NULL AND local_start IS NOT NULL AND time_zone_id IS NOT NULL AND start_at_utc IS NOT NULL AND ((source_chat_message_id IS NULL AND local_end IS NOT NULL AND local_end > local_start AND end_at_utc IS NOT NULL AND end_at_utc > start_at_utc) OR (source_chat_message_id IS NOT NULL AND ((local_end IS NULL AND end_at_utc IS NULL) OR (local_end IS NOT NULL AND end_at_utc IS NOT NULL AND end_at_utc > start_at_utc)))))");
                         });
                 });
 
@@ -683,6 +692,25 @@ namespace Wukna.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("created_at")
                         .HasDefaultValueSql("now()");
+
+                    b.Property<string>("MentionsJson")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("jsonb")
+                        .HasDefaultValue("[]")
+                        .HasColumnName("mentions_json");
+
+                    b.Property<bool>("NotifyReplyAuthor")
+                        .HasColumnType("boolean")
+                        .HasColumnName("notify_reply_author");
+
+                    b.Property<Guid?>("ReplyAuthorUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("reply_author_user_id");
+
+                    b.Property<Guid?>("ReplyToMessageId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("reply_to_message_id");
 
                     b.Property<string>("RequestFingerprint")
                         .IsRequired()
@@ -1046,35 +1074,532 @@ namespace Wukna.Migrations
                         });
                 });
 
-            modelBuilder.Entity("Wukna.Features.Notifications.TaskNotification", b =>
+            modelBuilder.Entity("Wukna.Features.Notifications.BoardNotificationPreference", b =>
                 {
-                    b.Property<Guid>("TaskId")
+                    b.Property<Guid>("BoardId")
                         .HasColumnType("uuid")
-                        .HasColumnName("task_id");
-
-                    b.Property<DateTimeOffset?>("DismissedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("dismissed_at");
-
-                    b.Property<DateTimeOffset>("IssuedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("issued_at");
-
-                    b.Property<DateTimeOffset?>("ReadAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("read_at");
+                        .HasColumnName("board_id");
 
                     b.Property<Guid>("UserId")
                         .HasColumnType("uuid")
                         .HasColumnName("user_id");
 
-                    b.HasKey("TaskId")
-                        .HasName("pk_task_notifications");
+                    b.Property<int>("Mode")
+                        .HasColumnType("integer")
+                        .HasColumnName("mode");
 
-                    b.HasIndex("UserId", "IssuedAt")
-                        .HasDatabaseName("ix_task_notifications_user_id_issued_at");
+                    b.Property<DateTimeOffset?>("MutedUntil")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("muted_until");
 
-                    b.ToTable("task_notifications", (string)null);
+                    b.Property<long>("Revision")
+                        .HasColumnType("bigint")
+                        .HasColumnName("revision");
+
+                    b.Property<bool>("SoundsMuted")
+                        .HasColumnType("boolean")
+                        .HasColumnName("sounds_muted");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.HasKey("BoardId", "UserId")
+                        .HasName("pk_board_notification_preferences");
+
+                    b.ToTable("board_notification_preferences", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_board_notification_preference_mode", "mode BETWEEN 0 AND 2");
+
+                            t.HasCheckConstraint("ck_board_notification_preference_revision", "revision >= 0");
+                        });
+                });
+
+            modelBuilder.Entity("Wukna.Features.Notifications.BrowserPushSubscription", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("AuthProtected")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("auth_protected");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<DateTimeOffset?>("DisabledAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("disabled_at");
+
+                    b.Property<string>("EndpointHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)")
+                        .HasColumnName("endpoint_hash");
+
+                    b.Property<string>("EndpointProtected")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("endpoint_protected");
+
+                    b.Property<int>("FailureCount")
+                        .HasColumnType("integer")
+                        .HasColumnName("failure_count");
+
+                    b.Property<Guid>("InstallationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("installation_id");
+
+                    b.Property<string>("P256dhProtected")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("p256dh_protected");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_browser_push_subscriptions");
+
+                    b.HasIndex("EndpointHash")
+                        .IsUnique()
+                        .HasDatabaseName("ix_browser_push_subscriptions_endpoint_hash");
+
+                    b.HasIndex("UserId", "InstallationId")
+                        .IsUnique()
+                        .HasDatabaseName("ix_browser_push_subscriptions_user_id_installation_id");
+
+                    b.ToTable("browser_push_subscriptions", (string)null);
+                });
+
+            modelBuilder.Entity("Wukna.Features.Notifications.CalendarEventReminder", b =>
+                {
+                    b.Property<Guid>("CalendarEventId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("calendar_event_id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<DateTimeOffset?>("DeliveredAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("delivered_at");
+
+                    b.Property<DateTimeOffset>("DueAtUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("due_at_utc");
+
+                    b.Property<int>("MinutesBefore")
+                        .HasColumnType("integer")
+                        .HasColumnName("minutes_before");
+
+                    b.Property<Guid>("ScheduleGeneration")
+                        .HasColumnType("uuid")
+                        .HasColumnName("schedule_generation");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.HasKey("CalendarEventId")
+                        .HasName("pk_calendar_event_reminders");
+
+                    b.HasIndex("DueAtUtc")
+                        .HasDatabaseName("ix_calendar_event_reminders_due_at_utc")
+                        .HasFilter("delivered_at IS NULL");
+
+                    b.HasIndex("UserId", "DueAtUtc")
+                        .HasDatabaseName("ix_calendar_event_reminders_user_id_due_at_utc");
+
+                    b.ToTable("calendar_event_reminders", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_calendar_reminder_minutes", "minutes_before BETWEEN 0 AND 10080");
+                        });
+                });
+
+            modelBuilder.Entity("Wukna.Features.Notifications.Notification", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<int>("ActivityCount")
+                        .HasColumnType("integer")
+                        .HasColumnName("activity_count");
+
+                    b.Property<string>("ActivityKind")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("activity_kind");
+
+                    b.Property<Guid?>("ActorUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("actor_user_id");
+
+                    b.Property<string>("AggregationKey")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("aggregation_key");
+
+                    b.Property<Guid?>("BoardId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("board_id");
+
+                    b.Property<DateTimeOffset?>("DismissedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("dismissed_at");
+
+                    b.Property<long?>("FirstChatSequence")
+                        .HasColumnType("bigint")
+                        .HasColumnName("first_chat_sequence");
+
+                    b.Property<DateTimeOffset>("IssuedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("issued_at");
+
+                    b.Property<long?>("LastChatSequence")
+                        .HasColumnType("bigint")
+                        .HasColumnName("last_chat_sequence");
+
+                    b.Property<Guid?>("MembershipInstanceId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("membership_instance_id");
+
+                    b.Property<DateTimeOffset?>("ReadAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("read_at");
+
+                    b.Property<long>("ReadRevision")
+                        .HasColumnType("bigint")
+                        .HasColumnName("read_revision");
+
+                    b.Property<Guid?>("ReminderGeneration")
+                        .HasColumnType("uuid")
+                        .HasColumnName("reminder_generation");
+
+                    b.Property<Guid?>("ResourceId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("resource_id");
+
+                    b.Property<string>("ResourceKind")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("resource_kind");
+
+                    b.Property<long>("Revision")
+                        .HasColumnType("bigint")
+                        .HasColumnName("revision");
+
+                    b.Property<Guid?>("TaskId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("task_id");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("title");
+
+                    b.Property<int>("Type")
+                        .HasColumnType("integer")
+                        .HasColumnName("type");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_notifications");
+
+                    b.HasIndex("TaskId")
+                        .IsUnique()
+                        .HasDatabaseName("ix_notifications_task_id")
+                        .HasFilter("task_id IS NOT NULL");
+
+                    b.HasIndex("UserId", "AggregationKey")
+                        .IsUnique()
+                        .HasDatabaseName("ix_notifications_user_id_aggregation_key")
+                        .HasFilter("aggregation_key IS NOT NULL AND dismissed_at IS NULL");
+
+                    b.HasIndex("BoardId", "UserId", "MembershipInstanceId")
+                        .HasDatabaseName("ix_notifications_board_id_user_id_membership_instance_id");
+
+                    b.HasIndex("UserId", "IssuedAt", "Id")
+                        .HasDatabaseName("ix_notifications_user_id_issued_at_id");
+
+                    b.HasIndex(new[] { "UserId", "IssuedAt", "Id" }, "ix_notifications_unread")
+                        .HasDatabaseName("ix_notifications_unread")
+                        .HasFilter("dismissed_at IS NULL AND read_revision < revision");
+
+                    b.ToTable("notifications", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_notification_board_instance", "(board_id IS NULL AND membership_instance_id IS NULL) OR (board_id IS NOT NULL AND membership_instance_id IS NOT NULL AND membership_instance_id <> '00000000-0000-0000-0000-000000000000'::uuid)");
+
+                            t.HasCheckConstraint("ck_notification_chat_sequences", "(first_chat_sequence IS NULL AND last_chat_sequence IS NULL) OR (first_chat_sequence IS NOT NULL AND last_chat_sequence IS NOT NULL AND first_chat_sequence > 0 AND last_chat_sequence >= first_chat_sequence)");
+
+                            t.HasCheckConstraint("ck_notification_revisions", "revision > 0 AND read_revision >= 0 AND read_revision <= revision AND activity_count > 0");
+
+                            t.HasCheckConstraint("ck_notification_task_reference", "(type = 0 AND task_id IS NOT NULL AND id = task_id) OR (type <> 0 AND task_id IS NULL)");
+
+                            t.HasCheckConstraint("ck_notification_type", "type BETWEEN 0 AND 5");
+                        });
+                });
+
+            modelBuilder.Entity("Wukna.Features.Notifications.NotificationClientPresence", b =>
+                {
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.Property<Guid>("InstallationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("installation_id");
+
+                    b.Property<Guid>("TabId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("tab_id");
+
+                    b.Property<Guid?>("BoardId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("board_id");
+
+                    b.Property<bool>("ChatVisible")
+                        .HasColumnType("boolean")
+                        .HasColumnName("chat_visible");
+
+                    b.Property<DateTimeOffset>("ExpiresAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("expires_at");
+
+                    b.HasKey("UserId", "InstallationId", "TabId")
+                        .HasName("pk_notification_client_presence");
+
+                    b.HasIndex("ExpiresAt")
+                        .HasDatabaseName("ix_notification_client_presence_expires_at");
+
+                    b.ToTable("notification_client_presence", (string)null);
+                });
+
+            modelBuilder.Entity("Wukna.Features.Notifications.NotificationPreference", b =>
+                {
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.Property<bool>("BoardInvitationNotificationsEnabled")
+                        .HasColumnType("boolean")
+                        .HasColumnName("board_invitation_notifications_enabled");
+
+                    b.Property<bool>("BoardInvitationSoundEnabled")
+                        .HasColumnType("boolean")
+                        .HasColumnName("board_invitation_sound_enabled");
+
+                    b.Property<bool>("ChatNotificationsEnabled")
+                        .HasColumnType("boolean")
+                        .HasColumnName("chat_notifications_enabled");
+
+                    b.Property<bool>("ChatSoundEnabled")
+                        .HasColumnType("boolean")
+                        .HasColumnName("chat_sound_enabled");
+
+                    b.Property<bool>("InAppEnabled")
+                        .HasColumnType("boolean")
+                        .HasColumnName("in_app_enabled");
+
+                    b.Property<bool>("PrivatePreviewsEnabled")
+                        .HasColumnType("boolean")
+                        .HasColumnName("private_previews_enabled");
+
+                    b.Property<bool>("PushEnabled")
+                        .HasColumnType("boolean")
+                        .HasColumnName("push_enabled");
+
+                    b.Property<long>("Revision")
+                        .HasColumnType("bigint")
+                        .HasColumnName("revision");
+
+                    b.Property<bool>("ScheduledTaskPostedSoundEnabled")
+                        .HasColumnType("boolean")
+                        .HasColumnName("scheduled_task_posted_sound_enabled");
+
+                    b.Property<bool>("ScheduledTaskReminderNotificationsEnabled")
+                        .HasColumnType("boolean")
+                        .HasColumnName("scheduled_task_reminder_notifications_enabled");
+
+                    b.Property<bool>("SharedBoardNotificationsEnabled")
+                        .HasColumnType("boolean")
+                        .HasColumnName("shared_board_notifications_enabled");
+
+                    b.Property<double>("SoundVolume")
+                        .HasColumnType("double precision")
+                        .HasColumnName("sound_volume");
+
+                    b.Property<bool>("SoundsMuted")
+                        .HasColumnType("boolean")
+                        .HasColumnName("sounds_muted");
+
+                    b.Property<bool>("TaskActivityNotificationsEnabled")
+                        .HasColumnType("boolean")
+                        .HasColumnName("task_activity_notifications_enabled");
+
+                    b.Property<bool>("TaskCompletedSoundEnabled")
+                        .HasColumnType("boolean")
+                        .HasColumnName("task_completed_sound_enabled");
+
+                    b.Property<bool>("TaskReminderNotificationsEnabled")
+                        .HasColumnType("boolean")
+                        .HasColumnName("task_reminder_notifications_enabled");
+
+                    b.Property<bool>("TaskReminderSoundEnabled")
+                        .HasColumnType("boolean")
+                        .HasColumnName("task_reminder_sound_enabled");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.HasKey("UserId")
+                        .HasName("pk_notification_preferences");
+
+                    b.ToTable("notification_preferences", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_notification_preference_revision", "revision >= 0");
+
+                            t.HasCheckConstraint("ck_notification_preference_volume", "sound_volume BETWEEN 0 AND 1");
+                        });
+                });
+
+            modelBuilder.Entity("Wukna.Features.Notifications.NotificationWork", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("ActivityKind")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("activity_kind");
+
+                    b.Property<Guid?>("ActorUserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("actor_user_id");
+
+                    b.Property<int>("Attempts")
+                        .HasColumnType("integer")
+                        .HasColumnName("attempts");
+
+                    b.Property<Guid?>("BoardId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("board_id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<DateTimeOffset>("ExpiresAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("expires_at");
+
+                    b.Property<int>("Kind")
+                        .HasColumnType("integer")
+                        .HasColumnName("kind");
+
+                    b.Property<Guid?>("LeaseToken")
+                        .HasColumnType("uuid")
+                        .HasColumnName("lease_token");
+
+                    b.Property<DateTimeOffset?>("LeaseUntil")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("lease_until");
+
+                    b.Property<Guid?>("MembershipInstanceId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("membership_instance_id");
+
+                    b.Property<long?>("MessageSequence")
+                        .HasColumnType("bigint")
+                        .HasColumnName("message_sequence");
+
+                    b.Property<DateTimeOffset>("NextAttemptAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("next_attempt_at");
+
+                    b.Property<Guid?>("NotificationId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("notification_id");
+
+                    b.Property<long?>("NotificationRevision")
+                        .HasColumnType("bigint")
+                        .HasColumnName("notification_revision");
+
+                    b.Property<DateTimeOffset?>("ProcessedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("processed_at");
+
+                    b.Property<Guid?>("PushSubscriptionId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("push_subscription_id");
+
+                    b.Property<Guid?>("ResourceId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("resource_id");
+
+                    b.Property<string>("ResourceKind")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("resource_kind");
+
+                    b.Property<string>("SourceEventKey")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)")
+                        .HasColumnName("source_event_key");
+
+                    b.Property<int>("Type")
+                        .HasColumnType("integer")
+                        .HasColumnName("type");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.HasKey("Id")
+                        .HasName("pk_notification_work");
+
+                    b.HasIndex("NextAttemptAt", "CreatedAt", "Id")
+                        .HasDatabaseName("ix_notification_work_next_attempt_at_created_at_id")
+                        .HasFilter("processed_at IS NULL");
+
+                    b.HasIndex("UserId", "SourceEventKey", "Kind")
+                        .IsUnique()
+                        .HasDatabaseName("ix_notification_work_user_id_source_event_key_kind");
+
+                    b.ToTable("notification_work", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_notification_work_attempts", "attempts >= 0");
+
+                            t.HasCheckConstraint("ck_notification_work_kind", "kind BETWEEN 0 AND 4");
+                        });
                 });
 
             modelBuilder.Entity("Wukna.Features.Notifications.TaskReminder", b =>
@@ -1098,6 +1623,10 @@ namespace Wukna.Migrations
                     b.Property<int>("MinutesBefore")
                         .HasColumnType("integer")
                         .HasColumnName("minutes_before");
+
+                    b.Property<Guid>("ScheduleGeneration")
+                        .HasColumnType("uuid")
+                        .HasColumnName("schedule_generation");
 
                     b.Property<DateTimeOffset>("UpdatedAt")
                         .HasColumnType("timestamp with time zone")
@@ -1626,16 +2155,66 @@ namespace Wukna.Migrations
                     b.Navigation("ParentNote");
                 });
 
-            modelBuilder.Entity("Wukna.Features.Notifications.TaskNotification", b =>
+            modelBuilder.Entity("Wukna.Features.Notifications.BoardNotificationPreference", b =>
                 {
-                    b.HasOne("Wukna.Features.Tasks.PersonalTask", "Task")
+                    b.HasOne("Wukna.Features.Board.BoardMembership", "Membership")
                         .WithOne()
-                        .HasForeignKey("Wukna.Features.Notifications.TaskNotification", "TaskId")
+                        .HasForeignKey("Wukna.Features.Notifications.BoardNotificationPreference", "BoardId", "UserId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired()
-                        .HasConstraintName("fk_task_notifications_personal_tasks_task_id");
+                        .HasConstraintName("fk_board_notification_preferences_board_memberships_board_id_u");
+
+                    b.Navigation("Membership");
+                });
+
+            modelBuilder.Entity("Wukna.Features.Notifications.BrowserPushSubscription", b =>
+                {
+                    b.HasOne("Wukna.Features.Users.User", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_browser_push_subscriptions_asp_net_users_user_id");
+                });
+
+            modelBuilder.Entity("Wukna.Features.Notifications.CalendarEventReminder", b =>
+                {
+                    b.HasOne("Wukna.Features.Calendar.CalendarEvent", "CalendarEvent")
+                        .WithOne()
+                        .HasForeignKey("Wukna.Features.Notifications.CalendarEventReminder", "CalendarEventId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_calendar_event_reminders_calendar_events_calendar_event_id");
+
+                    b.Navigation("CalendarEvent");
+                });
+
+            modelBuilder.Entity("Wukna.Features.Notifications.Notification", b =>
+                {
+                    b.HasOne("Wukna.Features.Tasks.PersonalTask", "Task")
+                        .WithMany()
+                        .HasForeignKey("TaskId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .HasConstraintName("fk_notifications_personal_tasks_task_id");
+
+                    b.HasOne("Wukna.Features.Users.User", null)
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_notifications_asp_net_users_user_id");
 
                     b.Navigation("Task");
+                });
+
+            modelBuilder.Entity("Wukna.Features.Notifications.NotificationPreference", b =>
+                {
+                    b.HasOne("Wukna.Features.Users.User", null)
+                        .WithOne()
+                        .HasForeignKey("Wukna.Features.Notifications.NotificationPreference", "UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired()
+                        .HasConstraintName("fk_notification_preferences_asp_net_users_user_id");
                 });
 
             modelBuilder.Entity("Wukna.Features.Notifications.TaskReminder", b =>

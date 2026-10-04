@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Bell, Check, Clock3, ExternalLink, RefreshCw, X } from "lucide-react";
-import { errorMessage, notificationApi, type TaskNotificationDto, type UpcomingReminderDto } from "../../api";
+import { errorMessage, notificationApi, calendarReminderApi, type NotificationDto, type UpcomingReminderDto } from "../../api";
 import { Button } from "../../components/ui/Button";
+import { notificationLabel, notificationPath } from "./notificationView";
 import "./notifications.css";
 
 const dateTime = (value: string) => new Intl.DateTimeFormat(undefined,
@@ -10,7 +11,7 @@ const dateTime = (value: string) => new Intl.DateTimeFormat(undefined,
 export function NotificationsPage({ navigate, notify }: {
   navigate: (path: string) => void; notify: (message: string) => void;
 }) {
-  const [items, setItems] = useState<TaskNotificationDto[]>([]);
+  const [items, setItems] = useState<NotificationDto[]>([]);
   const [upcoming, setUpcoming] = useState<UpcomingReminderDto[]>([]);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [upcomingCursor, setUpcomingCursor] = useState<string | null>(null);
@@ -46,7 +47,8 @@ export function NotificationsPage({ navigate, notify }: {
     const timer = window.setInterval(() => { void load(); }, 30_000);
     const onFocus = () => { void load(); };
     window.addEventListener("focus", onFocus);
-    return () => { requestId.current++; window.clearInterval(timer); window.removeEventListener("focus", onFocus); };
+    window.addEventListener("wukna:notifications-changed", onFocus);
+    return () => { requestId.current++; window.clearInterval(timer); window.removeEventListener("focus", onFocus); window.removeEventListener("wukna:notifications-changed", onFocus); };
   }, [load]);
   async function moreNotifications() {
     if (!nextCursor || loadingMore) return;
@@ -72,12 +74,17 @@ export function NotificationsPage({ navigate, notify }: {
     } catch (cause) { if (id === requestId.current) setError(errorMessage(cause)); }
     finally { if (id === requestId.current) setLoadingMore(false); }
   }
-  async function act(id: string, action: "read" | "dismiss" | "snooze") {
-    setBusyId(id); setError("");
+  async function act(item: NotificationDto, action: "read" | "dismiss" | "snooze") {
+    setBusyId(item.id); setError("");
     try {
-      if (action === "read") await notificationApi.read(id);
-      if (action === "dismiss") await notificationApi.dismiss(id);
-      if (action === "snooze") { await notificationApi.snooze(id, snoozeMinutes); notify("Reminder snoozed"); }
+      if (action === "read") await notificationApi.read(item.id, item.revision);
+      if (action === "dismiss") await notificationApi.dismiss(item.id, item.revision);
+      if (action === "snooze") {
+        if (item.taskId) await notificationApi.snooze(item.taskId, snoozeMinutes);
+        else if (item.type === "scheduledTaskReminder" && item.resourceId) await calendarReminderApi.snooze(item.resourceId, snoozeMinutes);
+        notify("Reminder snoozed");
+      }
+      window.dispatchEvent(new Event("wukna:notification-state-updated"));
       await load();
     } catch (cause) { setError(errorMessage(cause)); }
     finally { setBusyId(null); }
@@ -88,10 +95,11 @@ export function NotificationsPage({ navigate, notify }: {
     catch (cause) { setError(errorMessage(cause)); }
     finally { setBusyId(null); }
   }
-  async function openTask(id: string) {
-    if (busyId) return;
-    setBusyId(id); setError("");
-    try { await notificationApi.read(id); navigate(`/tasks/${id}`); }
+  async function openNotification(item: NotificationDto) {
+    const path = notificationPath(item);
+    if (busyId || !path) return;
+    setBusyId(item.id); setError("");
+    try { await notificationApi.read(item.id, item.revision); navigate(path); }
     catch (cause) { setError(errorMessage(cause)); setBusyId(null); }
   }
   return <section className="wk-notifications-page" aria-labelledby="wk-notifications-title">
@@ -105,17 +113,17 @@ export function NotificationsPage({ navigate, notify }: {
     {error && <div className="wk-notifications-error" role="alert"><p>{error}</p><Button variant="secondary" size="compact" onClick={() => void load(true)}>Try again</Button></div>}
     {loading ? <p className="wk-notifications-status" role="status">Loading notifications…</p> : <div className="wk-notifications-layout">
       <div className="wk-notifications-list"><h2>{unreadOnly ? "Unread" : "Recent"}</h2>
-        {items.length ? <ul>{items.map((item) => <li key={item.taskId} className={item.readAt ? "" : "wk-notification-unread"}>
-          <span className="wk-notification-icon"><Bell size={17} /></span><div className="wk-notification-copy"><strong>{item.taskTitle}</strong><p>Task reminder</p><time dateTime={item.issuedAt}>{dateTime(item.issuedAt)}</time></div>
-          <div className="wk-notification-actions"><Button variant="quiet" size="compact" disabled={busyId !== null} onClick={() => void openTask(item.taskId)}><ExternalLink size={14} /> Open task</Button>
-            {!item.readAt && <Button variant="quiet" size="compact" disabled={busyId !== null} onClick={() => void act(item.taskId, "read")}>Mark read</Button>}
-            <Button variant="quiet" size="compact" disabled={busyId !== null} onClick={() => void act(item.taskId, "snooze")}><Clock3 size={14} /> Snooze</Button>
-            <Button variant="quiet" size="compact" disabled={busyId !== null} onClick={() => void act(item.taskId, "dismiss")}><X size={14} /> Dismiss</Button></div>
+        {items.length ? <ul>{items.map((item) => <li key={item.id} className={item.isUnread ? "wk-notification-unread" : ""}>
+          <span className="wk-notification-icon"><Bell size={17} /></span><div className="wk-notification-copy"><strong>{item.title}</strong><p>{notificationLabel(item.type)}{item.activityCount > 1 ? ` · ${item.activityCount} updates` : ""}</p><time dateTime={item.issuedAt}>{dateTime(item.issuedAt)}</time></div>
+          <div className="wk-notification-actions">{notificationPath(item) && <Button variant="quiet" size="compact" disabled={busyId !== null} onClick={() => void openNotification(item)}><ExternalLink size={14} /> {item.taskId ? "Open task" : item.boardId ? "Open board" : "Open calendar"}</Button>}
+            {item.isUnread && <Button variant="quiet" size="compact" disabled={busyId !== null} onClick={() => void act(item, "read")}>Mark read</Button>}
+            {(item.type === "taskReminder" || item.type === "scheduledTaskReminder") && <Button variant="quiet" size="compact" disabled={busyId !== null} onClick={() => void act(item, "snooze")}><Clock3 size={14} /> Snooze</Button>}
+            <Button variant="quiet" size="compact" disabled={busyId !== null} onClick={() => void act(item, "dismiss")}><X size={14} /> Dismiss</Button></div>
         </li>)}</ul> : <div className="wk-notifications-empty"><Bell size={22} /><h3>{unreadOnly ? "All caught up" : "No notifications yet"}</h3>
           <p>Reminders for timed tasks appear here when they are due.</p></div>}
         {nextCursor && <div className="wk-notifications-more"><Button variant="secondary" size="compact" disabled={loadingMore} onClick={() => void moreNotifications()}>Load more notifications</Button></div>}
       </div><aside className="wk-notifications-side"><div><h2>Upcoming reminders</h2><p>{upcomingCount} scheduled in the next seven days</p>
-        {upcoming.length ? <ul>{upcoming.map((item) => <li key={item.taskId}><button onClick={() => navigate(`/tasks/${item.taskId}`)}>
+        {upcoming.length ? <ul>{upcoming.map((item) => <li key={item.taskId}><button onClick={() => navigate(item.resourceKind === "calendarEvent" ? `/calendar?event=${item.taskId}` : `/tasks/${item.taskId}`)}>
           <time dateTime={item.dueAtUtc}>{dateTime(item.dueAtUtc)}</time><strong>{item.taskTitle}</strong><ExternalLink size={14} /></button></li>)}</ul>
           : <p>No upcoming reminders. Open a timed task to set one.</p>}
         {upcomingCursor && <Button variant="secondary" size="compact" disabled={loadingMore} onClick={() => void moreUpcoming()}>Load more reminders</Button>}</div>

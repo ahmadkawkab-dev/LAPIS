@@ -65,7 +65,8 @@ public static class CalendarRangeEndpoints
                 .Skip(skip).Take(CategoryLimit + 1).ToListAsync(ct);
             var timedEvents = await db.CalendarEvents.AsNoTracking()
                 .Where(item => item.UserId == userId && !item.IsAllDay &&
-                    item.StartAtUtc < endUtc && item.EndAtUtc > startUtc)
+                    item.StartAtUtc < endUtc && (item.EndAtUtc > startUtc ||
+                        item.EndAtUtc == null && item.StartAtUtc >= startUtc))
                 .OrderBy(item => item.StartAtUtc).ThenBy(item => item.Id)
                 .Skip(skip).Take(CategoryLimit + 1).ToListAsync(ct);
 

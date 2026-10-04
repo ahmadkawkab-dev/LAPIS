@@ -8,6 +8,7 @@ using Wukna.Features.Chat;
 using Wukna.Shared.Data.AppDbContext;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Wukna.Features.Notifications;
 using Microsoft.Extensions.Options;
 
 public sealed record CreateBoardRequest(string Title);
@@ -197,7 +198,7 @@ public static class BoardEndpoints
             UserManager<User> userManager,
             BoardActivity activity,
             BoardRealtimeDispatcher realtime,
-            IOptionsMonitor<BoardOptions> options,
+            IOptionsMonitor<BoardOptions> options, TimeProvider clock,
             CancellationToken cancellationToken) =>
         {
             if (!TryGetUserId(context, out var userId)) return Results.Unauthorized();
@@ -249,6 +250,13 @@ public static class BoardEndpoints
             {
                 activity.MarkUpdated(db, boardId);
                 await db.SaveChangesAsync(cancellationToken);
+                if (membership is null)
+                {
+                    await NotificationSources.BoardAsync(db, boardId, userId, NotificationType.BoardInvitation,
+                        "boardInvited", "board", boardId, $"invitation:{Guid.NewGuid():N}", clock.GetUtcNow(),
+                        cancellationToken, onlyRecipient: guest.Id);
+                    await db.SaveChangesAsync(cancellationToken);
+                }
                 await transaction.CommitAsync(cancellationToken);
                 await realtime.MembersChangedAsync(boardId,
                     downgradedUserId: downgraded ? guest.Id : null);
@@ -258,7 +266,7 @@ public static class BoardEndpoints
         }).RequireRateLimiting("board-membership-write");
 
         group.MapGet("/{boardId:guid}/guest-limit", async (Guid boardId, HttpContext context,
-            WuknaDbContext db, IOptionsMonitor<BoardOptions> options, CancellationToken ct) =>
+            WuknaDbContext db, IOptionsMonitor<BoardOptions> options, TimeProvider clock, CancellationToken ct) =>
         {
             if (!TryGetUserId(context, out var userId)) return Results.Unauthorized();
             await using var transaction = await db.Database.BeginTransactionAsync(ct);

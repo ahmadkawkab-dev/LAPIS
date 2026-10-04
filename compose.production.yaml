@@ -32,6 +32,10 @@ services:
       Authentication__Google__ClientId: ${GOOGLE_CLIENT_ID:?Set GOOGLE_CLIENT_ID}
       Authentication__Google__ClientSecret: ${GOOGLE_CLIENT_SECRET:?Set GOOGLE_CLIENT_SECRET}
       Authentication__Google__FrontendBaseUrl: ${PUBLIC_ORIGIN:?Set PUBLIC_ORIGIN}
+      WebPush__Enabled: ${WEB_PUSH_ENABLED:-false}
+      WebPush__PublicKey: ${WEB_PUSH_PUBLIC_KEY:-}
+      WebPush__PrivateKey: ${WEB_PUSH_PRIVATE_KEY:-}
+      WebPush__Subject: ${WEB_PUSH_SUBJECT:-}
       ReverseProxy__KnownProxyIp: 172.28.88.10
     depends_on:
       db:

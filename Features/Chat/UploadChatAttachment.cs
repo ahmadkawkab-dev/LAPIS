@@ -124,6 +124,7 @@ public static class UploadChatAttachment
                     MessageId = message.Id, MessageSequence = message.Sequence, CreatedAt = now, NextAttemptAt = now });
                 ChatSendPolicy.Consume(settings, state, membership.Role, now);
                 db.ChatBlobWork.Remove(owned[0]);
+                await Wukna.Features.Notifications.NotificationSources.ChatAsync(db, message, now, token);
                 await db.SaveChangesAsync(token); await transaction.CommitAsync(token);
                 committed = true;
                 return Results.Created($"/api/boards/{boardId}/chat/messages/{message.Id}",
