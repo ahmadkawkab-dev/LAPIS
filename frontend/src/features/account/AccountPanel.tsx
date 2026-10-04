@@ -12,6 +12,7 @@ import { Button } from "../../components/ui/Button";
 import { Field } from "../../components/ui/Field";
 import { Avatar } from "../../components/ui/Avatar";
 import { ThemeControl } from "../../components/ui/ThemeControl";
+import { NotificationPreferences } from "../notifications/NotificationPreferences";
 
 export function AccountPanel({
   user,
@@ -227,6 +228,8 @@ export function AccountPanel({
         <h2 id="wk-appearance-heading">Appearance</h2>
         <ThemeControl />
       </section>
+
+      <NotificationPreferences key={user.id} userId={user.id} notify={notify} />
 
       <section className="wk-account-section" aria-labelledby="wk-sign-in-heading">
         <div className="wk-account-section-heading">

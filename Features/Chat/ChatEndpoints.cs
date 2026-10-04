@@ -137,6 +137,7 @@ public static class ChatEndpoints
         group.MapPut("/read", ChatRead.Update).Accepts<SetChatReadRequest>("application/json")
             .RequireRateLimiting("chat-read");
         group.MapGet("/members", ChatModeration.Members);
+        group.MapGet("/mention-members", ChatMentionMembers.Get);
         group.MapPut("/settings", ChatModeration.Settings).RequireRateLimiting("chat-moderation");
         group.MapPut("/members/{memberId:guid}/mute", ChatModeration.Mute).RequireRateLimiting("chat-moderation");
         group.MapGet("/messages/{messageId:guid}", ChatHistory.Get);

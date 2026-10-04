@@ -136,8 +136,9 @@ public static class PersonalTaskEndpoints
             CancellationToken cancellationToken) =>
         {
             if (!TryGetUserId(context, out var userId)) return Results.Unauthorized();
-            var task = await db.PersonalTasks.SingleOrDefaultAsync(
-                candidate => candidate.Id == id && candidate.UserId == userId, cancellationToken);
+            await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
+            var rows = await db.PersonalTasks.FromSqlInterpolated($"SELECT * FROM personal_tasks WHERE id = {id} AND user_id = {userId} FOR UPDATE").ToArrayAsync(cancellationToken);
+            var task = rows.SingleOrDefault();
             if (task is null) return Results.NotFound();
             var error = Validate(request, out var plannedAtUtc);
             if (error is not null) return BadRequest(error);
@@ -156,6 +157,7 @@ public static class PersonalTaskEndpoints
             try { await db.SaveChangesAsync(cancellationToken); }
             catch (DbUpdateException exception) when (IsMissingList(exception))
             { return BadRequest("invalid_task_list"); }
+            await transaction.CommitAsync(cancellationToken);
             return Results.Ok(PersonalTaskDto.From(task));
         });
 
@@ -171,8 +173,9 @@ public static class PersonalTaskEndpoints
             CancellationToken cancellationToken) =>
         {
             if (!TryGetUserId(context, out var userId)) return Results.Unauthorized();
-            var task = await db.PersonalTasks.SingleOrDefaultAsync(
-                candidate => candidate.Id == id && candidate.UserId == userId, cancellationToken);
+            await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
+            var rows = await db.PersonalTasks.FromSqlInterpolated($"SELECT * FROM personal_tasks WHERE id = {id} AND user_id = {userId} FOR UPDATE").ToArrayAsync(cancellationToken);
+            var task = rows.SingleOrDefault();
             if (task is null) return Results.NotFound();
             if (request.PlannedDate is null) return BadRequest("invalid_task_date");
             var candidate = new TaskWriteRequest(task.Title, task.Description, request.PlannedDate,
@@ -184,6 +187,7 @@ public static class PersonalTaskEndpoints
             task.UpdatedAt = clock.GetUtcNow();
             await TaskReminderEndpoints.SyncForTask(db, task, task.UpdatedAt, cancellationToken);
             await db.SaveChangesAsync(cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
             return Results.Ok(PersonalTaskDto.From(task));
         });
 
@@ -215,8 +219,9 @@ public static class PersonalTaskEndpoints
         WuknaDbContext db, TimeProvider clock, bool completed, CancellationToken cancellationToken)
     {
         if (!TryGetUserId(context, out var userId)) return Results.Unauthorized();
-        var task = await db.PersonalTasks.SingleOrDefaultAsync(
-            candidate => candidate.Id == id && candidate.UserId == userId, cancellationToken);
+        await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
+        var rows = await db.PersonalTasks.FromSqlInterpolated($"SELECT * FROM personal_tasks WHERE id = {id} AND user_id = {userId} FOR UPDATE").ToArrayAsync(cancellationToken);
+        var task = rows.SingleOrDefault();
         if (task is null) return Results.NotFound();
         if ((task.CompletedAt is not null) != completed)
         {
@@ -225,6 +230,7 @@ public static class PersonalTaskEndpoints
             await TaskReminderEndpoints.SyncForTask(db, task, task.UpdatedAt, cancellationToken);
             await db.SaveChangesAsync(cancellationToken);
         }
+        await transaction.CommitAsync(cancellationToken);
         return Results.Ok(PersonalTaskDto.From(task));
     }
 

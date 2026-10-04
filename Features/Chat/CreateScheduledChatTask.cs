@@ -6,6 +6,7 @@ using System.Text;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Wukna.Shared.Data.AppDbContext;
+using Wukna.Features.Notifications;
 
 public sealed record CreateScheduledChatTaskRequest(Guid ClientMessageId, string? Title, string? Description,
     DateTime? LocalStart, DateTime? LocalEnd, string? TimeZoneId,
@@ -52,11 +53,7 @@ public static class CreateScheduledChatTask
                 ChatSendPolicy.NextSend(settings, state, membership.Role), true, settings.SettingsRevision));
         }
         if (ChatSendPolicy.Rejection(context, settings, state, membership.Role, now) is { } rejection) return rejection;
-        if (state is null)
-        {
-            state = new BoardMemberChatState { BoardId = boardId, UserId = userId };
-            db.BoardMemberChatStates.Add(state);
-        }
+        if (state is null) state = await ChatAccess.LockStateAsync(db, boardId, userId, ct);
         ChatSendPolicy.Consume(settings, state, membership.Role, now);
         var message = new ChatMessage
         {
@@ -76,6 +73,7 @@ public static class CreateScheduledChatTask
             BoardId = boardId, Kind = ChatOutboxEventKind.MessageCreated,
             MessageId = message.Id, MessageSequence = message.Sequence, CreatedAt = now, NextAttemptAt = now
         });
+        await NotificationSources.ChatAsync(db, message, now, ct);
         await db.SaveChangesAsync(ct);
         await transaction.CommitAsync(ct);
         return Results.Created($"/api/boards/{boardId}/chat/messages/{message.Id}",

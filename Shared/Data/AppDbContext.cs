@@ -33,7 +33,13 @@ public class WuknaDbContext : IdentityUserContext<User, Guid>
     public DbSet<PlanningSettings> PlanningSettings => Set<PlanningSettings>();
     public DbSet<CalendarEvent> CalendarEvents => Set<CalendarEvent>();
     public DbSet<TaskReminder> TaskReminders => Set<TaskReminder>();
-    public DbSet<TaskNotification> TaskNotifications => Set<TaskNotification>();
+    public DbSet<Notification> Notifications => Set<Notification>();
+    public DbSet<NotificationPreference> NotificationPreferences => Set<NotificationPreference>();
+    public DbSet<BoardNotificationPreference> BoardNotificationPreferences => Set<BoardNotificationPreference>();
+    public DbSet<BrowserPushSubscription> BrowserPushSubscriptions => Set<BrowserPushSubscription>();
+    public DbSet<NotificationWork> NotificationWork => Set<NotificationWork>();
+    public DbSet<NotificationClientPresence> NotificationClientPresence => Set<NotificationClientPresence>();
+    public DbSet<CalendarEventReminder> CalendarEventReminders => Set<CalendarEventReminder>();
     public DbSet<BoardChatSettings> BoardChatSettings => Set<BoardChatSettings>();
     public DbSet<BoardMemberChatState> BoardMemberChatStates => Set<BoardMemberChatState>();
     public DbSet<ChatMessage> ChatMessages => Set<ChatMessage>();

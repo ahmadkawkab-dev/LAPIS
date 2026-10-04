@@ -6,6 +6,7 @@ using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Wukna.Features.Board;
 using Wukna.Shared.Data.AppDbContext;
+using Wukna.Features.Notifications;
 
 public static class SendChatMessage
 {
@@ -23,8 +24,15 @@ public static class SendChatMessage
             string.IsNullOrWhiteSpace(request.Body))
             return Results.BadRequest(new { error = "chat_invalid_message" });
         var body = request.Body.Trim().Replace("\r\n", "\n", StringComparison.Ordinal);
+        if (request.Mentions?.Any(item => item is null) == true) return Results.BadRequest(new { error = "chat_invalid_mentions" });
+        var mentions = (request.Mentions ?? []).OrderBy(item => item.Start).ToArray();
+        if (mentions.Length > 10 || body.Contains('\0')) return Results.BadRequest(new { error = "chat_invalid_mentions" });
+        var payload = mentions.Length == 0 && request.ReplyToMessageId is null
+            ? JsonSerializer.Serialize(new { type = "text", body })
+            : JsonSerializer.Serialize(new { type = "text", body, mentions, request.ReplyToMessageId,
+                notifyReplyAuthor = request.ReplyToMessageId is not null && request.NotifyReplyAuthor });
         var fingerprint = Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(
-            JsonSerializer.Serialize(new { type = "text", body }))));
+            payload)));
         // Match PostgreSQL microsecond precision so the first response and replay
         // return identical authoritative timestamps.
         var current = clock.GetUtcNow();
@@ -46,17 +54,33 @@ public static class SendChatMessage
             return Results.Ok(replay);
         }
         if (ChatSendPolicy.Rejection(context, settings, state, membership.Role, now) is { } rejection) return rejection;
-        if (state is null)
+        var lastEnd = 0;
+        foreach (var mention in mentions)
         {
-            state = new BoardMemberChatState { BoardId = boardId, UserId = userId };
-            db.BoardMemberChatStates.Add(state);
+            if (mention.Start < lastEnd || mention.Length < 2 || mention.Start > body.Length - mention.Length)
+                return Results.BadRequest(new { error = "chat_invalid_mentions" });
+            var target = await db.BoardMemberships.Where(item => item.BoardId == boardId && item.UserId == mention.UserId)
+                .Select(item => item.User.Username).SingleOrDefaultAsync(ct);
+            if (target is null || body.Substring(mention.Start, mention.Length) != "@" + target)
+                return Results.BadRequest(new { error = "chat_invalid_mentions" });
+            lastEnd = mention.Start + mention.Length;
         }
+        ChatMessage? parent = null;
+        if (request.ReplyToMessageId is { } parentId)
+        {
+            parent = await db.ChatMessages.AsNoTracking().SingleOrDefaultAsync(item => item.Id == parentId && item.BoardId == boardId, ct);
+            if (parent is null || parent.Type == ChatMessageType.ScheduledTask && parent.CreatedAt.AddHours(24) <= now)
+                return Results.BadRequest(new { error = "chat_invalid_reply" });
+        }
+        if (state is null) state = await ChatAccess.LockStateAsync(db, boardId, userId, ct);
         ChatSendPolicy.Consume(settings, state, membership.Role, now);
         var message = new ChatMessage
         {
             BoardId = boardId, SenderUserId = userId, Sequence = checked(++settings.LastMessageSequence),
             Type = ChatMessageType.Text, Body = body, CreatedAt = now,
             ClientMessageId = request.ClientMessageId, RequestFingerprint = fingerprint,
+            MentionsJson = JsonSerializer.Serialize(mentions), ReplyToMessageId = parent?.Id,
+            ReplyAuthorUserId = parent?.SenderUserId, NotifyReplyAuthor = parent is not null && request.NotifyReplyAuthor,
             SenderUser = await db.Users.SingleAsync(user => user.Id == userId, ct)
         };
         db.ChatMessages.Add(message);
@@ -67,6 +91,7 @@ public static class SendChatMessage
         });
         try
         {
+            await NotificationSources.ChatAsync(db, message, now, ct);
             await db.SaveChangesAsync(ct);
             await transaction.CommitAsync(ct);
         }

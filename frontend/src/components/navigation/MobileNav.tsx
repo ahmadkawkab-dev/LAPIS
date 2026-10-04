@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { notificationUnread, subscribeNotificationUnread } from "../../features/notifications/notificationState";
+import { useSyncExternalStore, useState } from "react";
 import { Bell, CalendarDays, CheckSquare, Home, LayoutDashboard, Menu, Boxes, Inbox } from "lucide-react";
 import type { AuthSession } from "../../auth";
 import { Avatar, identityLabel } from "../ui/Avatar";
@@ -17,6 +18,7 @@ export function MobileHeader({ onHome, onOpenAccount, user }: { onHome: () => vo
 }
 
 export function MobileNav({ onBoards, navigate }: { onBoards: () => void; navigate: (path: string) => void }) {
+  const unread = useSyncExternalStore(subscribeNotificationUnread, notificationUnread);
   const path = window.location.pathname;
   const [menuOpen, setMenuOpen] = useState(false);
   const moreActive = path.startsWith("/boards") || path === "/tasks/quick" || path === "/tasks/templates" || path === "/notifications" || path.startsWith("/account");
@@ -30,14 +32,14 @@ export function MobileNav({ onBoards, navigate }: { onBoards: () => void; naviga
       <button className={`wk-mobile-nav-item${path === "/calendar" ? " wk-mobile-nav-item--active" : ""}`}
         aria-current={path === "/calendar" ? "page" : undefined} onClick={() => go("/calendar")}><CalendarDays size={19} /><span>Calendar</span></button>
       <button className={`wk-mobile-nav-item${moreActive ? " wk-mobile-nav-item--active" : ""}`}
-        aria-expanded={menuOpen} aria-haspopup="dialog" onClick={() => setMenuOpen(true)}><Menu size={19} /><span>More</span></button>
+        aria-expanded={menuOpen} aria-haspopup="dialog" onClick={() => setMenuOpen(true)}><Menu size={19} /><span>More{unread > 0 ? ` · ${unread > 99 ? "99+" : unread}` : ""}</span></button>
     </nav>
     {menuOpen && <Dialog title="More" onClose={() => setMenuOpen(false)} className="wk-mobile-more">
       <div className="wk-mobile-more-links">
         <button onClick={() => { setMenuOpen(false); onBoards(); }}><LayoutDashboard size={18} /> Boards</button>
         <button onClick={() => go("/tasks/quick")}><Inbox size={18} /> Quick tasks</button>
         <button onClick={() => go("/tasks/templates")}><Boxes size={18} /> Templates</button>
-        <button onClick={() => go("/notifications")}><Bell size={18} /> Notifications</button>
+        <button onClick={() => go("/notifications")}><Bell size={18} /> Notifications{unread > 0 ? ` · ${unread}` : ""}</button>
         <button onClick={() => go("/account/profile")}><Menu size={18} /> Account</button>
       </div>
     </Dialog>}

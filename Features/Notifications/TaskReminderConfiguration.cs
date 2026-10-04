@@ -16,15 +16,3 @@ public sealed class TaskReminderConfiguration : IEntityTypeConfiguration<TaskRem
         entity.HasIndex(reminder => new { reminder.UserId, reminder.DueAtUtc });
     }
 }
-
-public sealed class TaskNotificationConfiguration : IEntityTypeConfiguration<TaskNotification>
-{
-    public void Configure(EntityTypeBuilder<TaskNotification> entity)
-    {
-        entity.ToTable("task_notifications");
-        entity.HasKey(notification => notification.TaskId);
-        entity.HasOne(notification => notification.Task).WithOne()
-            .HasForeignKey<TaskNotification>(notification => notification.TaskId).OnDelete(DeleteBehavior.Cascade);
-        entity.HasIndex(notification => new { notification.UserId, notification.IssuedAt });
-    }
-}

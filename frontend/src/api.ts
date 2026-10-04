@@ -31,15 +31,37 @@ export type TaskTemplateItem = Pick<PersonalTaskDto, "title" | "description" | "
 export type TaskTemplateDto = { id: string; name: string; items: TaskTemplateItem[]; createdAt: string; updatedAt: string };
 export type TaskTemplatePageDto = { items: TaskTemplateDto[]; hasMore: boolean; totalCount: number };
 export type TaskReminderDto = { taskId: string; minutesBefore: number; dueAtUtc: string; deliveredAt: string | null };
-export type TaskNotificationDto = { taskId: string; taskTitle: string; issuedAt: string; readAt: string | null; dismissedAt: string | null };
-export type UpcomingReminderDto = { taskId: string; taskTitle: string; dueAtUtc: string; minutesBefore: number };
-export type NotificationPageDto = { items: TaskNotificationDto[]; nextCursor: string | null; totalCount: number; unreadCount: number };
+export type NotificationType = "taskReminder" | "chatActivity" | "scheduledTaskReminder" | "sharedBoardActivity" | "boardInvitation" | "taskActivity";
+export type NotificationDto = {
+  id: string; type: NotificationType; title: string; activityKind: string | null;
+  actorUserId: string | null; boardId: string | null; resourceKind: string | null; resourceId: string | null;
+  issuedAt: string; updatedAt: string; readAt: string | null; dismissedAt: string | null;
+  revision: number; readRevision: number; isUnread: boolean; activityCount: number;
+  taskId: string | null; taskTitle: string | null;
+};
+export type NotificationSettings = {
+  inAppEnabled: boolean; pushEnabled: boolean; soundsMuted: boolean; soundVolume: number;
+  chatNotificationsEnabled: boolean; taskReminderNotificationsEnabled: boolean;
+  scheduledTaskReminderNotificationsEnabled: boolean; sharedBoardNotificationsEnabled: boolean;
+  boardInvitationNotificationsEnabled: boolean; taskActivityNotificationsEnabled: boolean;
+  chatSoundEnabled: boolean; taskReminderSoundEnabled: boolean; scheduledTaskPostedSoundEnabled: boolean;
+  boardInvitationSoundEnabled: boolean; taskCompletedSoundEnabled: boolean; privatePreviewsEnabled: boolean;
+};
+export type NotificationPreferenceDto = { settings: NotificationSettings; revision: number; updatedAt: string | null };
+export type ChatNotificationMode = "allActivity" | "mentionsAndReplies" | "muted";
+export type BoardNotificationPreferenceDto = {
+  mode: ChatNotificationMode; effectiveMode: ChatNotificationMode; soundsMuted: boolean;
+  mutedUntil: string | null; revision: number; updatedAt: string | null;
+};
+export type UpcomingReminderDto = { taskId: string; taskTitle: string; dueAtUtc: string; minutesBefore: number; resourceKind?: "task" | "calendarEvent" };
+export type NotificationPageDto = { items: NotificationDto[]; nextCursor: string | null; totalCount: number; unreadCount: number };
 export type UpcomingReminderPageDto = { items: UpcomingReminderDto[]; nextCursor: string | null; totalCount: number };
 export type CalendarEventDto = {
   id: string; title: string; description: string | null; location: string | null;
   isAllDay: boolean; allDayStartDate: string | null; allDayEndDateExclusive: string | null;
   localStart: string | null; localEnd: string | null; timeZoneId: string | null;
   startAtUtc: string | null; endAtUtc: string | null; createdAt: string; updatedAt: string;
+  sourceChatMessageId?: string | null;
 };
 export type CalendarEventWrite = Pick<CalendarEventDto,
   "title" | "description" | "location" | "isAllDay" | "allDayStartDate" |
@@ -155,6 +177,7 @@ async function request<T>(
   method = "GET",
   body?: object,
   version?: number,
+  signal?: AbortSignal,
 ): Promise<T> {
   const headers: Record<string, string> = {};
   if (body !== undefined) headers["Content-Type"] = "application/json";
@@ -165,6 +188,7 @@ async function request<T>(
       method,
       headers,
       body: body === undefined ? undefined : JSON.stringify(body),
+      signal,
     });
   } catch (error) {
     if (error instanceof AuthApiError) throw error;
@@ -218,6 +242,10 @@ export function errorMessage(error: unknown): string {
     invalid_task_template_item: "Check each template task's title, description, and schedule.",
     invalid_task_template_page: "Could not load that page of templates. Refresh and try again.",
     invalid_notification_page: "Could not load that page of notifications. Refresh and try again.",
+    invalid_notification_revision: "Refresh notifications and try again.",
+    invalid_notification_preferences: "Check your notification settings and volume.",
+    invalid_board_notification_preferences: "Choose a valid notification mode and mute duration.",
+    notification_preferences_changed: "These settings changed in another session. Reload the latest settings before saving.",
     invalid_reminder_offset: "Choose a reminder from now until seven days before the task.",
     reminder_requires_open_timed_task: "Add a date and time to an open task before setting a reminder.",
     reminder_time_in_past: "Choose a reminder time that is still in the future.",
@@ -338,15 +366,25 @@ export const taskReminderApi = {
 
 const notifications = "/api/notifications";
 export const notificationApi = {
-  list: () => request<TaskNotificationDto[]>(notifications),
+  get: (id: string, signal?: AbortSignal) => request<NotificationDto>(`${notifications}/${encodeURIComponent(id)}`, "GET", undefined, undefined, signal),
+  chatUnread: () => request<{ boardId: string; unreadCount: number }[]>(`${notifications}/chat-unread`),
+  list: () => request<NotificationDto[]>(notifications),
+  unreadCount: () => request<{ unreadCount: number }>(`${notifications}/unread-count`),
+  preferences: (signal?: AbortSignal) => request<NotificationPreferenceDto>(`${notifications}/preferences`, "GET", undefined, undefined, signal),
+  savePreferences: (settings: NotificationSettings, revision: number, signal?: AbortSignal) =>
+    request<NotificationPreferenceDto>(`${notifications}/preferences`, "PUT", { settings, revision }, undefined, signal),
+  boardPreferences: (boardId: string, signal?: AbortSignal) =>
+    request<BoardNotificationPreferenceDto>(`${boards}/${encodeURIComponent(boardId)}/notification-preferences`, "GET", undefined, undefined, signal),
+  saveBoardPreferences: (boardId: string, value: Omit<BoardNotificationPreferenceDto, "effectiveMode" | "updatedAt">, signal?: AbortSignal) =>
+    request<BoardNotificationPreferenceDto>(`${boards}/${encodeURIComponent(boardId)}/notification-preferences`, "PUT", value, undefined, signal),
   upcoming: () => request<UpcomingReminderDto[]>(`${notifications}/upcoming`),
   page: (cursor: string | null = null, unreadOnly = false) => request<NotificationPageDto>(
     `${notifications}/page?limit=30&unreadOnly=${unreadOnly}${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ""}`),
   upcomingPage: (cursor: string | null = null) => request<UpcomingReminderPageDto>(
     `${notifications}/upcoming/page?limit=20${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ""}`),
-  read: (id: string) => request<void>(`${notifications}/${encodeURIComponent(id)}/read`, "POST"),
+  read: (id: string, revision?: number) => request<void>(`${notifications}/${encodeURIComponent(id)}/read${revision === undefined ? "" : `?revision=${revision}`}`, "POST"),
   readAll: () => request<void>(`${notifications}/read-all`, "POST"),
-  dismiss: (id: string) => request<void>(`${notifications}/${encodeURIComponent(id)}/dismiss`, "POST"),
+  dismiss: (id: string, revision?: number) => request<void>(`${notifications}/${encodeURIComponent(id)}/dismiss${revision === undefined ? "" : `?revision=${revision}`}`, "POST"),
   snooze: (id: string, minutes: number) => request<void>(`${notifications}/${encodeURIComponent(id)}/snooze`, "POST", { minutes }),
 };
 
@@ -378,7 +416,13 @@ export const planningSettingsApi = {
 
 const calendar = "/api/calendar";
 const calendarEvent = (id: string) => `${calendar}/events/${encodeURIComponent(id)}`;
+const chatCalendarPath = (boardId: string, messageId: string) =>
+  `${calendar}/events/from-chat/${encodeURIComponent(boardId)}/${encodeURIComponent(messageId)}`;
 export const calendarApi = {
+  chatEvent: (boardId: string, messageId: string, signal?: AbortSignal) =>
+    request<CalendarEventDto | undefined>(chatCalendarPath(boardId, messageId), "GET", undefined, undefined, signal),
+  addChatEvent: (boardId: string, messageId: string, signal?: AbortSignal) =>
+    request<CalendarEventDto>(chatCalendarPath(boardId, messageId), "POST", undefined, undefined, signal),
   range: (from: string, to: string, timeZone: string, offset = 0) =>
     request<CalendarRangeDto>(`${calendar}?from=${from}&to=${to}&timeZone=${encodeURIComponent(timeZone)}&offset=${offset}`),
   getEvent: (id: string) => request<CalendarEventDto>(calendarEvent(id)),
@@ -451,4 +495,21 @@ export const connectionApi = {
       `${connections(id)}/${encodeURIComponent(connectionId)}`,
       "DELETE",
     ),
+};
+
+export type CalendarReminderDto = { calendarEventId: string; minutesBefore: number; dueAtUtc: string; deliveredAt: string | null };
+export const calendarReminderApi = {
+  get: (id: string, signal?: AbortSignal) => request<CalendarReminderDto | undefined>(`/api/calendar/events/${encodeURIComponent(id)}/reminder`, "GET", undefined, undefined, signal),
+  put: (id: string, minutesBefore: number) => request<CalendarReminderDto>(`/api/calendar/events/${encodeURIComponent(id)}/reminder`, "PUT", { minutesBefore }),
+  remove: (id: string) => request<void>(`/api/calendar/events/${encodeURIComponent(id)}/reminder`, "DELETE"),
+  snooze: (id: string, minutes: number) => request<void>(`/api/calendar/events/${encodeURIComponent(id)}/reminder/snooze`, "POST", { minutes }),
+};
+export type PushDevice = { id: string; installationId: string; createdAt: string };
+export const pushApi = {
+  configuration: () => request<{ enabled: boolean; publicKey: string | null }>(`${notifications}/push/configuration`),
+  devices: () => request<PushDevice[]>(`${notifications}/push/subscriptions`),
+  register: (installationId: string, endpoint: string, p256dh: string, auth: string) => request<{ id: string; installationId: string }>(`${notifications}/push/subscriptions`, "PUT", { installationId, endpoint, p256dh, auth }),
+  remove: (id: string) => request<void>(`${notifications}/push/subscriptions/${encodeURIComponent(id)}`, "DELETE"),
+  disableInstallation: (id: string) => request<void>(`${notifications}/push/installation/${encodeURIComponent(id)}`, "DELETE"),
+  presence: (value: { installationId: string; tabId: string; visible: boolean; boardId: string | null; chatVisible: boolean }, signal?: AbortSignal) => request<void>(`${notifications}/push/presence`, "PUT", value, undefined, signal),
 };

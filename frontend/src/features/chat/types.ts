@@ -2,7 +2,9 @@ export type ChatSender = {
   userId: string; username: string; displayName: string | null;
   avatarUrl: string | null; avatarVersion: string | null;
 };
-export type ChatMessage = {
+export type ChatMention = { userId: string; start: number; length: number };
+export type ChatMetadata = { mentions?: ChatMention[]; replyToMessageId?: string | null; notifyReplyAuthor?: boolean };
+export type ChatMessage = ChatMetadata & {
   id: string; boardId: string; sequence: string; cursor: string;
   type: "text" | "attachment" | "scheduledTask"; body: string | null;
   createdAt: string; clientMessageId: string; sender: ChatSender;
@@ -51,7 +53,7 @@ export type ChatMemberPage = { items: ChatModerationMember[]; nextUserId: string
 export interface ChatApi {
   history(boardId: string, query: ChatHistoryQuery, signal: AbortSignal): Promise<ChatPage>;
   message(boardId: string, messageId: string, signal: AbortSignal): Promise<ChatMessage>;
-  send(boardId: string, request: { clientMessageId: string; body: string }, signal: AbortSignal): Promise<ChatSendResult>;
+  send(boardId: string, request: { clientMessageId: string; body: string } & ChatMetadata, signal: AbortSignal): Promise<ChatSendResult>;
   schedule(boardId: string, request: ScheduledTaskWrite & { clientMessageId: string }, signal: AbortSignal): Promise<ChatSendResult>;
   upload(boardId: string, request: { clientMessageId: string; body: string; file: File }, signal: AbortSignal): Promise<ChatSendResult>;
   download(boardId: string, attachmentId: string, preview: boolean, signal: AbortSignal): Promise<Blob>;

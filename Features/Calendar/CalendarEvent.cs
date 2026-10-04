@@ -7,6 +7,9 @@ public sealed class CalendarEvent
     public Guid Id { get; set; } = Guid.NewGuid();
     public Guid UserId { get; set; }
     public User User { get; set; } = null!;
+    // Snapshot provenance, retained if the original board/message is deleted.
+    // Only the authorized server-side import sets this reference.
+    public Guid? SourceChatMessageId { get; set; }
     public string Title { get; set; } = string.Empty;
     public string? Description { get; set; }
     public string? Location { get; set; }

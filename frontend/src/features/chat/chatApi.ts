@@ -79,6 +79,8 @@ export const chatApi: ChatApi = {
   },
 };
 const base = (boardId: string) => `/api/boards/${encodeURIComponent(boardId)}/chat`;
+export const mentionMembers = (boardId: string, search: string, signal: AbortSignal) =>
+  request<{ userId: string; username: string; displayName: string | null }[]>(`${base(boardId)}/mention-members?search=${encodeURIComponent(search)}`, signal);
 export const chatModerationApi = {
   members: (boardId: string, signal: AbortSignal, after?: string): Promise<ChatMemberPage> =>
     request(`${base(boardId)}/members${after ? `?afterUserId=${encodeURIComponent(after)}` : ""}`, signal),
@@ -96,6 +98,8 @@ export function chatErrorMessage(cause: unknown): string {
       chat_muted: "You’re muted in this board chat. You can still read messages.",
       chat_cooldown: "Slow mode is on. Wait a moment before sending again.",
       chat_rate_limited: "You’ve sent several messages recently. Wait a moment, then retry.",
+      chat_invalid_mentions: "A mentioned member is no longer available. Choose them again.",
+      chat_invalid_reply: "That message is no longer available to reply to.",
       chat_invalid_message: "Write a message using 1–4,000 characters.",
       chat_operation_conflict: "This retry doesn’t match its saved operation. Refresh chat to check the saved message.",
       chat_settings_conflict: "Chat settings changed. Review the current settings and try again.",

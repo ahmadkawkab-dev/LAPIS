@@ -2,9 +2,9 @@ import { ChatApiError, chatErrorMessage } from "./chatApi.ts";
 import { chatDraftKey, compareSequence, maxChatMessages, mergeChatMessages, readChatDraft, saveChatDraft } from "./chatState.ts";
 import { ChatTypingState } from "./chatTyping.ts";
 import { emptyScheduledTaskDraft } from "./scheduledTask.ts";
-import type { AccessRevoked, ChatApi, ChatJoined, ChatMessage, ChatPage, ChatSender, ChatTransport, ChatTransportFactory, ChatTransportStatus, ScheduledTaskDraft, ScheduledTaskWrite } from "./types.ts";
+import type { ChatMetadata, AccessRevoked, ChatApi, ChatJoined, ChatMessage, ChatPage, ChatSender, ChatTransport, ChatTransportFactory, ChatTransportStatus, ScheduledTaskDraft, ScheduledTaskWrite } from "./types.ts";
 
-export type PendingChatMessage = { clientMessageId: string; body: string; createdAt: string; file: File | null;
+export type PendingChatMessage = ChatMetadata & { clientMessageId: string; body: string; createdAt: string; file: File | null;
   type: ChatMessage["type"]; task: ScheduledTaskWrite | null; status: "sending" | "failed"; error: string | null };
 export type ChatSnapshot = {
   messages: ChatMessage[]; pending: PendingChatMessage[]; draft: string; selectedFile: File | null; attachmentError: string | null;
@@ -376,6 +376,24 @@ export class ChatController {
     return task;
   }
 
+  async focusMessage(messageId: string) {
+    if (!this.active || this.snapshot.revoked) return;
+    const epoch = this.epoch;
+    this.setViewingLatest(false, true);
+    try {
+      const target = await this.api.message(this.boardId, messageId, this.abort.signal);
+      if (!this.valid(epoch) || target.boardId !== this.boardId) return;
+      const [before, after] = await Promise.all([
+        this.api.history(this.boardId, { before: target.cursor, limit: 25 }, this.abort.signal),
+        this.api.history(this.boardId, { after: target.cursor, limit: 25 }, this.abort.signal),
+      ]);
+      if (!this.valid(epoch)) return;
+      this.checkPage(before); this.checkPage(after); this.historyVersion++;
+      this.patch({ messages: mergeChatMessages([], [...before.items, target, ...after.items], this.boardId),
+        loaded: true, hasOlder: before.hasMore, windowHasNewer: after.hasMore, error: null });
+    } catch (cause) { if (this.valid(epoch)) this.readFailure(cause); }
+  }
+
   async loadOlder() {
     const first = this.snapshot.messages[0];
     if (!this.active || !first || !this.snapshot.hasOlder || this.snapshot.loadingOlder || this.snapshot.revoked) return;
@@ -393,14 +411,14 @@ export class ChatController {
     finally { if (this.valid(epoch)) this.patch({ loadingOlder: false }); }
   }
 
-  async sendDraft() {
+  async sendDraft(metadata: ChatMetadata = {}) {
     if (!this.canSend()) return;
     this.stopTyping();
     const operation = this.options.operationId?.() ?? crypto.randomUUID();
     const message: PendingChatMessage = { clientMessageId: operation,
       body: this.snapshot.draft.trim().replaceAll("\r\n", "\n"), createdAt: new Date(this.now()).toISOString(),
       file: this.snapshot.selectedFile, type: this.snapshot.selectedFile ? "attachment" : "text", task: null,
-      status: "sending", error: null };
+      ...(!this.snapshot.selectedFile ? metadata : {}), status: "sending", error: null };
     this.setDraft("");
     this.patch({ selectedFile: null, attachmentError: null, pending: [...this.snapshot.pending, message] });
     await this.sendPending(message);
@@ -438,7 +456,8 @@ export class ChatController {
         ? await this.api.schedule(this.boardId, { clientMessageId: message.clientMessageId, ...message.task }, this.abort.signal)
         : message.file
         ? await this.api.upload(this.boardId, { clientMessageId: message.clientMessageId, body: message.body, file: message.file }, this.abort.signal)
-        : await this.api.send(this.boardId, { clientMessageId: message.clientMessageId, body: message.body }, this.abort.signal);
+        : await this.api.send(this.boardId, { clientMessageId: message.clientMessageId, body: message.body, ...(message.mentions?.length ? { mentions: message.mentions } : {}),
+            ...(message.replyToMessageId ? { replyToMessageId: message.replyToMessageId, notifyReplyAuthor: message.notifyReplyAuthor } : {}) }, this.abort.signal);
       if (!this.valid(epoch)) return;
       if (result.message.boardId !== this.boardId || result.message.sender.userId !== this.userId ||
           result.message.clientMessageId !== message.clientMessageId || result.message.type !== message.type)

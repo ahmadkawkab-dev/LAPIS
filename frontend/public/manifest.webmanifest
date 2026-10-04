@@ -1,0 +1,14 @@
+{
+  "id": "/",
+  "name": "Wukna",
+  "short_name": "Wukna",
+  "start_url": "/home",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#F5F1E8",
+  "theme_color": "#52664A",
+  "icons": [
+    { "src": "/wukna.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
+    { "src": "/wukna-google-logo.png", "sizes": "120x120", "type": "image/png", "purpose": "any" }
+  ]
+}

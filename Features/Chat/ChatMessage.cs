@@ -18,6 +18,10 @@ public sealed class ChatMessage
     public DateTimeOffset CreatedAt { get; set; }
     public Guid ClientMessageId { get; set; }
     public string RequestFingerprint { get; set; } = string.Empty;
+    public string MentionsJson { get; set; } = "[]";
+    public Guid? ReplyToMessageId { get; set; }
+    public Guid? ReplyAuthorUserId { get; set; }
+    public bool NotifyReplyAuthor { get; set; }
     public ChatAttachment? Attachment { get; set; }
     public ScheduledChatTask? ScheduledTask { get; set; }
 }

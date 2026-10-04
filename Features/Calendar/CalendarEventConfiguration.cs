@@ -13,9 +13,11 @@ public sealed class CalendarEventConfiguration : IEntityTypeConfiguration<Calend
             "AND all_day_end_date_exclusive > all_day_start_date AND local_start IS NULL AND local_end IS NULL " +
             "AND time_zone_id IS NULL AND start_at_utc IS NULL AND end_at_utc IS NULL) OR " +
             "(NOT is_all_day AND all_day_start_date IS NULL AND all_day_end_date_exclusive IS NULL " +
-            "AND local_start IS NOT NULL AND local_end IS NOT NULL AND local_end > local_start " +
-            "AND time_zone_id IS NOT NULL AND start_at_utc IS NOT NULL AND end_at_utc IS NOT NULL " +
-            "AND end_at_utc > start_at_utc)"));
+            "AND local_start IS NOT NULL AND time_zone_id IS NOT NULL AND start_at_utc IS NOT NULL " +
+            "AND ((source_chat_message_id IS NULL AND local_end IS NOT NULL AND local_end > local_start " +
+            "AND end_at_utc IS NOT NULL AND end_at_utc > start_at_utc) OR " +
+            "(source_chat_message_id IS NOT NULL AND ((local_end IS NULL AND end_at_utc IS NULL) OR " +
+            "(local_end IS NOT NULL AND end_at_utc IS NOT NULL AND end_at_utc > start_at_utc)))))"));
         entity.HasKey(item => item.Id);
         entity.Property(item => item.Title).HasMaxLength(200).IsRequired();
         entity.Property(item => item.Description).HasMaxLength(4000);
@@ -29,5 +31,7 @@ public sealed class CalendarEventConfiguration : IEntityTypeConfiguration<Calend
             .HasForeignKey(item => item.UserId).OnDelete(DeleteBehavior.Cascade);
         entity.HasIndex(item => new { item.UserId, item.AllDayStartDate, item.AllDayEndDateExclusive });
         entity.HasIndex(item => new { item.UserId, item.StartAtUtc, item.EndAtUtc });
+        entity.HasIndex(item => new { item.UserId, item.SourceChatMessageId }).IsUnique()
+            .HasFilter("source_chat_message_id IS NOT NULL");
     }
 }

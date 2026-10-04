@@ -1,6 +1,7 @@
 namespace Wukna.Features.Calendar;
 
 using System.IdentityModel.Tokens.Jwt;
+using Wukna.Features.Notifications;
 using Microsoft.EntityFrameworkCore;
 using Wukna.Shared.Data.AppDbContext;
 
@@ -29,12 +30,13 @@ public sealed record CalendarEventDto(
     DateTimeOffset? StartAtUtc,
     DateTimeOffset? EndAtUtc,
     DateTimeOffset CreatedAt,
-    DateTimeOffset UpdatedAt)
+    DateTimeOffset UpdatedAt,
+    Guid? SourceChatMessageId = null)
 {
     public static CalendarEventDto From(CalendarEvent item) => new(
         item.Id, item.Title, item.Description, item.Location, item.IsAllDay,
         item.AllDayStartDate, item.AllDayEndDateExclusive, item.LocalStart, item.LocalEnd,
-        item.TimeZoneId, item.StartAtUtc, item.EndAtUtc, item.CreatedAt, item.UpdatedAt);
+        item.TimeZoneId, item.StartAtUtc, item.EndAtUtc, item.CreatedAt, item.UpdatedAt, item.SourceChatMessageId);
 }
 
 public static class CalendarEventEndpoints
@@ -42,6 +44,8 @@ public static class CalendarEventEndpoints
     public static IEndpointRouteBuilder MapCalendarEventEndpoints(this IEndpointRouteBuilder endpoints)
     {
         var group = endpoints.MapGroup("/api/calendar/events").RequireAuthorization();
+        group.MapGet("/from-chat/{boardId:guid}/{messageId:guid}", ChatTaskCalendarImport.Get);
+        group.MapPost("/from-chat/{boardId:guid}/{messageId:guid}", ChatTaskCalendarImport.Add);
         group.MapGet("/{id:guid}", async (Guid id, HttpContext context,
             WuknaDbContext db, CancellationToken ct) =>
         {
@@ -67,22 +71,30 @@ public static class CalendarEventEndpoints
             HttpContext context, WuknaDbContext db, TimeProvider clock, CancellationToken ct) =>
         {
             if (!TryGetUserId(context, out var userId)) return Results.Unauthorized();
-            var item = await db.CalendarEvents.SingleOrDefaultAsync(
-                candidate => candidate.Id == id && candidate.UserId == userId, ct);
+            await using var transaction = await db.Database.BeginTransactionAsync(ct);
+            var rows = await db.CalendarEvents.FromSqlInterpolated($"SELECT * FROM calendar_events WHERE id = {id} AND user_id = {userId} FOR UPDATE").ToArrayAsync(ct);
+            var item = rows.SingleOrDefault();
             if (item is null) return Results.NotFound();
             var error = Validate(request, out var startAtUtc, out var endAtUtc);
             if (error is not null) return BadRequest(error);
             Assign(item, request, startAtUtc, endAtUtc);
             item.UpdatedAt = clock.GetUtcNow();
+            await CalendarReminderEndpoints.Sync(db, item, item.UpdatedAt, ct);
             await db.SaveChangesAsync(ct);
+            await transaction.CommitAsync(ct);
             return Results.Ok(CalendarEventDto.From(item));
         });
         group.MapDelete("/{id:guid}", async (Guid id, HttpContext context,
-            WuknaDbContext db, CancellationToken ct) =>
+            WuknaDbContext db, TimeProvider clock, CancellationToken ct) =>
         {
             if (!TryGetUserId(context, out var userId)) return Results.Unauthorized();
-            var deleted = await db.CalendarEvents.Where(item => item.Id == id && item.UserId == userId)
-                .ExecuteDeleteAsync(ct);
+            await using var transaction = await db.Database.BeginTransactionAsync(ct);
+            var rows = await db.CalendarEvents.FromSqlInterpolated($"SELECT * FROM calendar_events WHERE id = {id} AND user_id = {userId} FOR UPDATE").AsNoTracking().ToArrayAsync(ct);
+            if (rows.Length == 0) return Results.NotFound();
+            await CalendarReminderEndpoints.ClearNotifications(db, id, userId, ct);
+            var deleted = await db.CalendarEvents.Where(item => item.Id == id && item.UserId == userId).ExecuteDeleteAsync(ct);
+            NotificationSources.StateChanged(db, userId, clock.GetUtcNow());
+            await db.SaveChangesAsync(ct); await transaction.CommitAsync(ct);
             return deleted == 0 ? Results.NotFound() : Results.NoContent();
         });
         return endpoints;

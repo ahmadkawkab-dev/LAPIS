@@ -27,12 +27,12 @@ public sealed class TaskReminderEndpointTests(PostgresFixture postgres)
             {
                 var task = Task(owner.Id, $"Task {i}", now);
                 db.PersonalTasks.Add(task);
-                db.TaskNotifications.Add(new TaskNotification { TaskId = task.Id, UserId = owner.Id,
-                    IssuedAt = now.AddMinutes(-i), ReadAt = i < 5 ? now : null });
+                db.Notifications.Add(new Notification { Id = task.Id, TaskId = task.Id, UserId = owner.Id,
+                    IssuedAt = now.AddMinutes(-i), ReadAt = i < 5 ? now : null, ReadRevision = i < 5 ? 1 : 0 });
             }
             var foreign = Task(other.Id, "Private", now);
             db.PersonalTasks.Add(foreign);
-            db.TaskNotifications.Add(new TaskNotification { TaskId = foreign.Id, UserId = other.Id,
+            db.Notifications.Add(new Notification { Id = foreign.Id, TaskId = foreign.Id, UserId = other.Id,
                 IssuedAt = now });
             await db.SaveChangesAsync(ct);
         }

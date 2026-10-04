@@ -25,6 +25,11 @@ using System.Security.Claims;
 using System.Text;
 using System.Net;
 
+if (args is ["--generate-vapid-keys", var keyFile])
+{
+    WebPushConfiguration.WriteKeyPair(keyFile);
+    return;
+}
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddEndpointsApiExplorer();
@@ -80,6 +85,13 @@ builder.Services.AddScoped<GoogleLinkIntentService>();
 builder.Services.AddScoped<GoogleAccountLinkService>();
 builder.Services.AddHostedService<ExternalLoginGrantCleanupService>();
 builder.Services.AddHostedService<TaskReminderWorker>();
+builder.Services.AddOptions<NotificationOptions>().BindConfiguration("Notifications");
+builder.Services.AddOptions<WebPushOptions>().BindConfiguration("WebPush").Validate(options => options.IsValid(),
+    "Enabled WebPush requires a matching P-256 VAPID key pair and a mailto or HTTPS subject.").ValidateOnStart();
+builder.Services.AddHttpClient("web-push").RemoveAllLoggers().ConfigurePrimaryHttpMessageHandler(WebPushSender.CreateHandler);
+builder.Services.AddSingleton<INotificationPushSender, WebPushSender>();
+builder.Services.AddSingleton<NotificationDispatcher>();
+builder.Services.AddHostedService(provider => provider.GetRequiredService<NotificationDispatcher>());
 // Keep the pre-rename cryptographic application name so existing protected auth payloads
 // remain readable across deployment of the Wukna identifiers.
 var dataProtection = builder.Services.AddDataProtection().SetApplicationName("Lapis");
@@ -248,6 +260,10 @@ app.MapTaskTemplateEndpoints();
 app.MapCalendarEventEndpoints();
 app.MapCalendarRangeEndpoints();
 app.MapTaskReminderEndpoints();
+app.MapCalendarReminderEndpoints();
+app.MapWebPushEndpoints();
+app.MapNotificationEndpoints();
+app.MapNotificationPreferenceEndpoints();
 app.MapChatMessageEndpoints();
 app.MapHub<ChatHub>(ChatHub.Path, options =>
     options.CloseOnAuthenticationExpiration = true).RequireAuthorization();

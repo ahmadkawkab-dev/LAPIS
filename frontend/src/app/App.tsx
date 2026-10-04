@@ -31,6 +31,9 @@ import { DashboardPage } from "../features/dashboard/DashboardPage";
 import { TasksPage } from "../features/tasks/TasksPage";
 import { TemplatesPage } from "../features/tasks/TemplatesPage";
 import { CalendarPage } from "../features/calendar/CalendarPage";
+import { rememberNotificationReturnPath, takeNotificationReturnPath } from "../features/notifications/notificationRoutes";
+import { NotificationRuntime } from "../features/notifications/NotificationRuntime";
+import { clearBrowserNotificationSession } from "../features/notifications/browserPush";
 import { NotificationsPage } from "../features/notifications/NotificationsPage";
 import { SoonPage } from "../features/future/PreviewUI";
 import { Workspace } from "../features/boards/BoardWorkspace";
@@ -59,11 +62,13 @@ export default function App() {
     [loading, setLoading] = useState(false),
     [failure, setFailure] = useState("");
   const started = useRef(false);
+  const returnPath = useRef<string | null>(null);
   const notify = useCallback((message: string) => setNotice({ message, tone: "default" }), []);
   const warn = useCallback((message: string) => setNotice({ message, tone: "warning" }), []);
   const navigate = useCallback((next: string) => {
     window.history.pushState(null, "", next);
-    setPath(next);
+    setPath(new URL(next, window.location.origin).pathname);
+    window.dispatchEvent(new Event("wukna:navigation"));
   }, []);
   useEffect(() => {
     const pop = () => setPath(window.location.pathname);
@@ -90,11 +95,13 @@ export default function App() {
         }
         if (code) {
           setSession(await exchangeGoogleCode(code));
+          navigate(takeNotificationReturnPath() ?? "/home");
           return;
         }
       }
       const restored = await bootstrapSession();
       setSession(restored);
+      if (restored && window.location.pathname === "/home") { const target = takeNotificationReturnPath(); if (target) navigate(target); }
       if (restored && callbackError) notify(callbackError);
       else if (restored && linked) notify("Google account linked");
     } catch (cause) {
@@ -103,7 +110,7 @@ export default function App() {
     } finally {
       setStarting(false);
     }
-  }, [notify]);
+  }, [notify, navigate]);
   useEffect(() => {
     if (started.current) return;
     started.current = true;
@@ -149,6 +156,8 @@ export default function App() {
       setSession(null);
       setBoards([]);
       setStartupError("Your session expired. Please sign in again.");
+      const target = window.location.pathname + window.location.search;
+      returnPath.current = rememberNotificationReturnPath(target);
       window.history.replaceState(null, "", "/login");
       setPath("/login");
     });
@@ -156,6 +165,8 @@ export default function App() {
   }, []);
   useEffect(() => {
     if (!starting && !startupBlocked && !session && !["/", "/login", "/register", "/privacy", "/terms"].includes(path)) {
+      const target = window.location.pathname + window.location.search;
+      returnPath.current = rememberNotificationReturnPath(target);
       window.history.replaceState(null, "", "/login");
       setPath("/login");
     }
@@ -165,8 +176,10 @@ export default function App() {
   }, [starting, startupBlocked, session, loadBoards]);
   async function signOut(all: boolean) {
     try {
+      await clearBrowserNotificationSession(true, session?.user.id).catch(() => undefined);
       if (all) await logoutEverywhere();
       else await logout();
+      takeNotificationReturnPath(); returnPath.current = null;
       setSession(null);
       setBoards([]);
       navigate("/login");
@@ -264,7 +277,7 @@ export default function App() {
         onSuccess={(value) => {
           setSession(value);
           setStartupError("");
-          navigate("/home");
+          navigate(returnPath.current ?? takeNotificationReturnPath() ?? "/home"); returnPath.current = null; takeNotificationReturnPath();
         }}
       />
     );
@@ -291,6 +304,7 @@ export default function App() {
       signOutEverywhere={() => void signOut(true)}
       notify={notify}
     >
+      <NotificationRuntime key={session.user.id} userId={session.user.id} navigate={navigate} />
       {path === "/home" ? <DashboardPage user={session.user} boards={boards} boardsLoading={loading} boardsError={failure}
         retryBoards={() => void loadBoards().catch(() => undefined)} navigate={navigate} notify={notify} />
       : path === "/library" ? <SoonPage area="Library" /> : path === "/library/pictures" ? <SoonPage area="Pictures" /> : path === "/journal" ? <SoonPage area="Journal" /> : path === "/tasks/templates" ? <TemplatesPage notify={notify} navigate={navigate} />
