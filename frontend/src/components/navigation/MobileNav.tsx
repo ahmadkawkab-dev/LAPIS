@@ -1,19 +1,25 @@
+import { TourHelpIcon } from "../../features/onboarding/TourHelpIcon";
 import { notificationUnread, subscribeNotificationUnread } from "../../features/notifications/notificationState";
 import { useSyncExternalStore, useState } from "react";
 import { Bell, CalendarDays, CheckSquare, Home, LayoutDashboard, Menu, Boxes, Inbox } from "lucide-react";
 import type { AuthSession } from "../../auth";
 import { Avatar, identityLabel } from "../ui/Avatar";
 import { IconButton } from "../ui/Button";
+import { useReplayTour } from "../../features/onboarding/OnboardingProvider";
 import { Dialog } from "../ui/Dialog";
 
 export function MobileHeader({ onHome, onOpenAccount, user }: { onHome: () => void; onOpenAccount: () => void; user: AuthSession["user"] }) {
+  const replayTour = useReplayTour();
   return <header className="wk-mobile-header">
     <button className="wk-mobile-brand" onClick={onHome} aria-label="Wukna home">
       <span className="wk-sidebar-monogram" aria-hidden="true">W</span><strong>Wukna</strong>
     </button>
+    <div className="wk-mobile-account-area">
+    <IconButton className="wk-tour-replay" data-tour="replay" label="Replay onboarding tour" title="Take the Wukna tour" onClick={() => replayTour?.()}><TourHelpIcon /></IconButton>
     <IconButton label={`Open account for ${identityLabel(user)}`} title={identityLabel(user)} onClick={onOpenAccount}>
       <Avatar identity={user} size="small" />
     </IconButton>
+    </div>
   </header>;
 }
 
@@ -24,14 +30,14 @@ export function MobileNav({ onBoards, navigate }: { onBoards: () => void; naviga
   const moreActive = path.startsWith("/boards") || path === "/tasks/quick" || path === "/tasks/templates" || path === "/notifications" || path.startsWith("/account");
   const go = (target: string) => { setMenuOpen(false); navigate(target); };
   return <>
-    <nav className="wk-mobile-nav" aria-label="Primary navigation">
-      <button className={`wk-mobile-nav-item${path === "/home" ? " wk-mobile-nav-item--active" : ""}`}
+    <nav data-tour="navigation" className="wk-mobile-nav" aria-label="Primary navigation">
+      <button data-tour="home" className={`wk-mobile-nav-item${path === "/home" ? " wk-mobile-nav-item--active" : ""}`}
         aria-current={path === "/home" ? "page" : undefined} onClick={() => go("/home")}><Home size={19} aria-hidden="true" /><span>Home</span></button>
       <button className={`wk-mobile-nav-item${path === "/tasks" ? " wk-mobile-nav-item--active" : ""}`}
         aria-current={path === "/tasks" ? "page" : undefined} onClick={() => go("/tasks")}><CheckSquare size={19} aria-hidden="true" /><span>Week</span></button>
-      <button className={`wk-mobile-nav-item${path === "/calendar" ? " wk-mobile-nav-item--active" : ""}`}
+      <button data-tour="calendar" className={`wk-mobile-nav-item${path === "/calendar" ? " wk-mobile-nav-item--active" : ""}`}
         aria-current={path === "/calendar" ? "page" : undefined} onClick={() => go("/calendar")}><CalendarDays size={19} aria-hidden="true" /><span>Calendar</span></button>
-      <button className={`wk-mobile-nav-item${moreActive ? " wk-mobile-nav-item--active" : ""}`}
+      <button data-tour="more" className={`wk-mobile-nav-item${moreActive ? " wk-mobile-nav-item--active" : ""}`}
         aria-expanded={menuOpen} aria-haspopup="dialog" onClick={() => setMenuOpen(true)}><Menu size={19} aria-hidden="true" /><span>More{unread > 0 ? ` · ${unread > 99 ? "99+" : unread}` : ""}</span></button>
     </nav>
     {menuOpen && <Dialog title="More" onClose={() => setMenuOpen(false)} className="wk-mobile-more">

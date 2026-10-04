@@ -449,6 +449,12 @@ export const profileApi = {
   removeAvatar: () => request<{ profileImageUrl: null; profileImageVersion: null }>("/api/profile/avatar", "DELETE"),
 };
 
+export type OnboardingDto = { status: "NotStarted" | "Completed" | "Skipped"; version: number };
+export const onboardingApi = {
+  get: (signal?: AbortSignal) => request<OnboardingDto>("/api/profile/onboarding", "GET", undefined, undefined, signal),
+  save: (value: OnboardingDto, signal?: AbortSignal) => request<OnboardingDto>("/api/profile/onboarding", "PUT", value, undefined, signal),
+};
+
 export const noteApi = {
   list: (id: string) => request<NoteDto[]>(notes(id)),
   get: (id: string, noteId: string) =>

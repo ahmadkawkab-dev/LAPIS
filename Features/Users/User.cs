@@ -21,6 +21,8 @@ public class User : IdentityUser<Guid>
     public string? DisplayName { get; set; }
     public string? ProfileImageKey { get; set; }
     public string? ProfileImageVersion { get; set; }
+    public string OnboardingStatus { get; set; } = "NotStarted";
+    public int OnboardingVersion { get; set; }
 
     // EF populates the initialized collection; replacing the collection itself isn't required.
     public ICollection<BoardMembership> BoardMemberships { get; } = new List<BoardMembership>();
