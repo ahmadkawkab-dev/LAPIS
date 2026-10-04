@@ -1,70 +1,210 @@
 # Wukna
 
-Wukna is a visual workspace for organizing notes and checklists on shared boards. People can arrange ideas on a canvas, connect related notes, and collaborate with board members in real time.
+Wukna is a personal and collaborative workspace designed to bring your ideas, tasks, notes, planning, and saved content into one calm, organized space.
 
-## Available now
+Instead of separating planning, note-taking, collaboration, and personal organization across multiple tools, Wukna brings them together in a visual workspace built around boards, tasks, calendars, and real-time collaboration.
 
-- **Shared boards:** Create, search, rename, and delete boards, invite members with view or edit access, and organize notes and checklists with connections.
-- **Live collaboration:** See board presence, cursors, and editing indicators, with live drag and resize previews and saved changes in PostgreSQL.
-- **Board chat:** Send messages and scheduled-task cards, with live typing, unread state, and moderation controls. Image uploads require private storage and scanner configuration and are disabled by default. See [board chat](docs/BOARD_CHAT.md).
-- **Personal Tasks:** Plan a week, keep Quick Tasks and named lists, reuse day templates, and schedule timed reminders.
-- **Calendar:** View scheduled tasks and events in Month or Agenda, move tasks between dates, and add scheduled chat cards to a personal calendar.
-- **Notifications:** Review reminders, chat and board activity, adjust preferences, and opt into browser push when it is configured. See [notifications](docs/NOTIFICATIONS.md).
-- **Accounts and profiles:** Register with email and password or sign in with Google, manage sessions, and update a display name, username, avatar, and interface theme.
+Wukna is currently under active development.
 
-## Board navigation
+## What Wukna Does
 
-Boards use a finite 12,000 × 8,000 workspace centered on the existing origin (X −6,000 to 6,000, Y −4,000 to 4,000). Cards, panning, and edge auto-pan stop at those boundaries. Navigation follows [Figma's canvas gestures](https://help.figma.com/hc/en-us/articles/15297425105303-Explore-design-files), with a fixed page inspired by [Lucidchart's bounded page settings](https://help.lucid.co/hc/en-us/articles/15578781626772-Adjust-document-and-board-settings).
+### Visual Boards
 
-Each user's latest camera position and zoom are saved separately for each board in browser-local preferences, with a 300 ms debounce and a final save when leaving or refreshing. Returning to a board restores that view, clamped to the current board and viewport sizes. A first visit uses fit-to-content. Preferences remain local to that browser; no new server preference schema is needed.
+Create flexible visual workspaces where ideas can be organized spatially rather than being limited to traditional lists.
 
-World dimensions are defined in `frontend/src/features/boards/boardBounds.ts` and enforced by `Features/Board/BoardWorkspaceBounds.cs`; keep both definitions aligned when changing the size. Existing out-of-bounds cards are displayed inside the workspace and saved within bounds on their next geometry edit. Connections and SignalR messages retain their existing world-coordinate contracts.
+Boards support:
 
-## Planned features
+- Notes and checklists
+- Moveable and resizable cards
+- Connections between related ideas
+- Board search and organization
+- Shared boards
+- View and edit permissions
+- Persistent canvas positions and zoom
+- A bounded workspace designed for comfortable navigation
 
-- **Library:** Save and organize content in collections, including a Pictures and albums area.
-- **Journal:** Keep private daily entries for thoughts and memories.
-- **Planning improvements:** Add recurring tasks and events, plus Calendar Week and Day views.
+Your position inside a board is remembered, allowing you to leave a workspace and return to where you were working.
 
-Library, Journal, and Pictures currently show coming-soon screens in the app. Development builds include sample-content design previews; those previews do not save user content.
+### Real-Time Collaboration
 
-## Personal Tasks
+Wukna boards can be shared with other people and edited together.
 
-Personal tasks are stored separately from board checklists. A task may be unscheduled, date-only, or timed; timed tasks retain their local date, time, IANA time zone, and computed UTC instant. The weekly planner shows dated tasks, including completed ones, in Monday–Sunday boards and keeps unscheduled Quick Tasks separate. Right-clicking a task in the week or calendar opens edit and delete actions; the week day menu can clear all tasks for that day after confirmation. Today includes overdue tasks and separates timed work from anytime work. Users can create, rename, and delete personal task lists; deleting a list also deletes its tasks. The saved planning time zone determines the local date used by Today, Upcoming, and the current week, and defaults to the device zone until saved. Changing it does not alter existing scheduled task times. Templates store reusable titles, descriptions, and optional times; applying one merges new independent task instances into a chosen day. Recurrence is not implemented.
+Collaboration features include:
 
-Authenticated task routes are `GET/POST /api/tasks`, `GET/PUT/DELETE /api/tasks/{id}`, `DELETE /api/tasks/day/{date}`, and `POST /api/tasks/{id}/complete|reopen|schedule`. The day deletion route accepts `YYYY-MM-DD`, removes active and completed tasks for that user's date, and returns the deletion count. The schedule command accepts `{ "plannedDate": "YYYY-MM-DD" }` and changes only the date and derived UTC instant. A timed task keeps its local time and time zone; an invalid local time on the new date is rejected. The task query accepts `view=inbox|today|upcoming|all|completed|week`, a local `date` for Today, Upcoming, or the start of a seven-day week, an optional `listId`, and bounded `limit`/`offset` pagination. The week view includes completed tasks. Templates use `GET/POST /api/task-templates`, paged `GET /api/task-templates/page?search=&offset=&limit=`, `GET/PUT/DELETE /api/task-templates/{id}`, and `POST /api/task-templates/{id}/apply` with `{ "plannedDate": "YYYY-MM-DD" }`. Named lists use `GET/POST /api/task-lists` and `PUT/DELETE /api/task-lists/{id}`. The planning zone uses `GET/PUT /api/tasks/settings`. Every operation is scoped to the JWT user.
+- Live member presence
+- Collaborative editing
+- Live cursor and activity indicators
+- Editing indicators
+- Live card movement and resize previews
+- Real-time board updates
+- Permission-aware collaboration
 
-## Calendar
+The goal is to make shared boards feel active without making the workspace distracting.
 
-Calendar events are separate from tasks. All-day events use a start date and an exclusive end date, without an artificial midnight time. Timed events retain authored local start/end values, an IANA time zone, and UTC instants. The Month and Agenda views read both scheduled tasks and events. Calendar also has an unscheduled-task tray: drag tasks onto a day or use Plan to pick a date. Scheduled tasks can be dragged to another visible day or moved with the Agenda date picker. A timed task remains a task when shown in Calendar and retains its authored local time on a date move.
+### Board Chat
 
-`GET /api/calendar?from=YYYY-MM-DD&to=YYYY-MM-DD&timeZone=IANA&offset=0` accepts an exclusive end date and at most 42 days. It returns user-owned task/event projections, up to 500 per category per page. When `hasMore` is true, the client can request the next page by adding 500 to `offset`. Event CRUD uses `POST /api/calendar/events` and `GET/PUT/DELETE /api/calendar/events/{id}`. All-day event writes provide `allDayStartDate` and `allDayEndDateExclusive`; timed writes provide offset-free `localStart`, `localEnd`, and `timeZoneId`. The server validates local times and rejects daylight-saving gaps and overlaps. Recurring events are not exposed. Saved scheduled chat events can have reminders.
+Shared boards include a dedicated conversation space so discussions can stay connected to the work they belong to.
 
-Scheduled chat cards offer **Add to Wukna Calendar** and **Download .ics**. Adding creates one user-owned calendar snapshot per source message, preserving the existing title, description, timezone, and UTC instants (including an omitted end time). `GET/POST /api/calendar/events/from-chat/{boardId}/{messageId}` checks current board membership and derives ownership from the JWT; concurrent or repeated adds return the same event. The source message ID is retained as provenance without a cascading foreign key, so the calendar entry survives chat-task expiry or source deletion. Downloads continue using the existing authorized ICS export. Apply the `AddChatTaskCalendarImports` migration before running this version.
+Board chat includes:
 
-## Task reminders and notifications
+- Real-time messaging
+- Typing indicators
+- Unread messages
+- Mentions and replies
+- Moderation controls
+- Scheduled task and event cards
+- Calendar integration
 
-`GET/PUT/DELETE /api/tasks/{id}/reminder` reads, schedules, and cancels a reminder on an open timed task. `PUT` accepts `minutesBefore` from 0 to 10,080. The authored local task time is converted to UTC; the reminder stores the UTC trigger instant. Rescheduling or completing the task updates or cancels its reminder and any stale notification. A PostgreSQL-backed worker polls every 30 seconds and claims up to 100 due reminders per batch with row locks. The reminder and notification transition is atomic and idempotent across restarts or multiple API replicas. Failed database work is logged and retried on the next poll. The database, rather than a process timer, is authoritative.
+### Personal Tasks
 
-`GET /api/notifications/page?limit=&cursor=&unreadOnly=` returns active notifications with a cursor, `totalCount`, and `unreadCount`. `GET /api/notifications/unread-count` returns the authenticated user's visible unread count. `GET /api/notifications/upcoming/page?limit=&cursor=` returns scheduled reminders for the next seven days with `totalCount`. The UI loads further pages on demand. `POST /api/notifications/read-all` and `POST /api/notifications/{id}/read|dismiss` manage read/dismiss state; new activity sends its observed `?revision=` so stale actions cannot consume newer updates. Existing reminder IDs remain their task IDs and accept legacy read/dismiss calls. `POST /api/notifications/{taskId}/snooze` accepts 5–1,440 minutes and rearms the persisted reminder. All routes derive ownership from the authenticated JWT. Delivery is in-app, with optional browser Web Push when configured and enabled by the user.
+Wukna also includes a personal planning system separate from collaborative board checklists.
 
-The [notification system](docs/NOTIFICATIONS.md) adds persistent chat mentions/replies, per-board modes, realtime activity, supplied foreground sounds and mute controls, saved-calendar reminders, semantic board notifications, and optional encrypted Web Push. Browser opt-in, device removal and account settings are under Account → Preferences & security. `AddNotificationFoundation` preserves legacy reminder state; `AddNotificationDelivery` adds durable delivery, metadata, reminder generations and push storage. Apply reviewed migrations before release; push stays disabled until stable VAPID keys and a contact subject are configured. Publishing and production verification remain operator-controlled.
+You can:
 
-The `AddPersonalTasks`, `AddTaskListsAndPlanningSettings`, `CascadeTaskListDeletion`, `AddCalendarEvents`, `AddTaskTemplates`, and `AddTaskRemindersAndNotifications` migrations must be applied in order in environments that do not already have them. The cascade migration changes list deletion to delete its tasks; review existing list data before applying it outside local development.
+- Create quick tasks
+- Organize tasks into custom lists
+- Plan tasks across the week
+- Schedule tasks for specific dates and times
+- Track overdue and upcoming work
+- Complete and reopen tasks
+- Reuse task templates
+- Set reminders
+- Manage planning around your local time zone
 
-For a production release, review the generated [personal planning migration SQL](ops/migrations/2026-10-02-personal-planning.sql) against the production migration history and database backup, then apply it through the database owner's reviewed procedure before starting the new API image. The SQL is idempotent per migration and was generated from `20260928153353_TrackConnectionVersions` through `20261001165613_AddTaskRemindersAndNotifications`. The standard production workflow deliberately rejects any commit whose `Migrations/` directory differs from the running release; it cannot deploy this release until the migration path and deployment gate are reviewed. The API does not apply migrations on startup.
+This keeps personal planning independent from tasks that belong to collaborative boards.
+
+### Calendar
+
+The built-in calendar brings scheduled work together in one place.
+
+It currently supports:
+
+- Month view
+- Agenda view
+- Scheduled tasks
+- Personal calendar events
+- All-day and timed events
+- Moving tasks between dates
+- Planning previously unscheduled tasks
+- Adding scheduled items from board conversations
+- Calendar reminders
+- Calendar export
+
+### Notifications & Reminders
+
+Wukna provides a central notification system for important activity across the workspace.
+
+Notifications can include:
+
+- Task reminders
+- Board activity
+- Chat mentions and replies
+- Calendar reminders
+- Collaboration updates
+
+Users can manage notification preferences, unread activity, reminder snoozing, sounds, and supported browser notifications.
+
+### Accounts & Profiles
+
+Wukna supports personal accounts and customizable profiles.
+
+Users can:
+
+- Register with email and password
+- Sign in with Google
+- Manage active sessions
+- Choose a display name and username
+- Upload a profile picture
+- Configure interface preferences
+- Choose their preferred theme
+- Manage notification and security preferences
+
+Profile information is also used throughout collaborative spaces to make it easier to recognize other members.
+
+## What's Planned
+
+Wukna is being developed toward a broader personal workspace rather than only a board and task application.
+
+### Library
+
+A personal space for saving and organizing useful content, including:
+
+- Websites
+- Articles
+- Videos
+- Social media posts
+- Study material
+- References
+- Collections
+
+The goal is to make things you want to revisit part of your workspace instead of leaving them scattered across bookmarks and different platforms.
+
+### Pictures
+
+A dedicated visual library for saving and organizing images.
+
+Planned features include:
+
+- Image collections
+- Albums
+- Visual browsing
+- Organization and categorization
+- Integration with the wider Wukna Library
+
+### Journal
+
+A private space for personal writing, thoughts, memories, and daily reflection.
+
+The Journal is planned as a personal part of Wukna rather than a collaborative workspace.
+
+### Planning Improvements
+
+The Tasks and Calendar systems will continue to expand with features such as:
+
+- Recurring tasks
+- Recurring events
+- Calendar Week view
+- Calendar Day view
+- Improved long-term planning
+
+## Product Direction
+
+Wukna is built around the idea of having a digital space that feels personal.
+
+The long-term goal is to combine:
+
+- Visual thinking
+- Notes
+- Tasks
+- Planning
+- Collaboration
+- Journaling
+- Saved knowledge
+- Personal media
+
+into a workspace that users can shape around the way they think and work.
+
+The focus is on creating something calm, flexible, and personal while still being powerful enough for collaboration.
 
 ## Technology
 
 | Area | Technology |
 | --- | --- |
-| Backend | .NET 10, ASP.NET Core Minimal APIs, Identity, SignalR |
+| Backend | .NET 10, ASP.NET Core, SignalR |
 | Frontend | React 19, TypeScript, Vite, Tailwind CSS |
-| Data | PostgreSQL, Entity Framework Core, Npgsql |
-| Authentication | JWT access tokens, rotating HttpOnly refresh cookies, CSRF protection, Google OAuth |
+| Database | PostgreSQL, Entity Framework Core |
+| Authentication | ASP.NET Core Identity, JWT, Google OAuth |
+| Real-time | SignalR |
+| Infrastructure | Docker, Nginx, GitHub Actions |
 
-Wukna is under active development. Library and Journal remain planned features.
+## Project Status
+
+Wukna is under active development.
+
+Boards, real-time collaboration, chat, personal tasks, calendar, notifications, accounts, and profiles form the current application.
+
+Library, Pictures, Journal, recurring planning, and additional calendar experiences are planned as Wukna continues to grow.
 
 ## License
 
-MIT. See [LICENSE](LICENSE).
+MIT — see [LICENSE](LICENSE).
