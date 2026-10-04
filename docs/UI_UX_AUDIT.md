@@ -1,4 +1,6 @@
-# UI/UX audit — October 2026
+# UI/UX audit — historical snapshot
+
+This records an earlier implementation. For the current Home, Chat, Templates, notification, accessibility and responsive review, see [the October 4 audit](UI_UX_REFACTOR_AUDIT.md). Its “coming soon” Chat statement and navigation inventory are superseded.
 
 The repository implementation is the source of truth. This inventory covers the signed-in shell, public authentication, Boards, Tasks, Calendar, Account, shared controls, development previews, responsive styles, and the frontend API boundary. Priorities: P0 is misleading or inaccessible, P1 is a significant usability problem, and P2 is refinement. KEEP, IMPROVE, CONSOLIDATE, MOVE, and REMOVE describe the decision; they do not imply deleting domain behavior.
 

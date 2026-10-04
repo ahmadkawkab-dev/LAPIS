@@ -160,6 +160,69 @@ public sealed class NotificationFoundationTests(PostgresFixture postgres)
     }
 
     [Fact]
+    public async Task Dismiss_read_clears_all_accessible_read_entries_and_preserves_unread_foreign_and_obsolete_membership_entries()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var seed = await Seed(postgres, ct);
+        await using var factory = new Factory(postgres, seed.Clock);
+        using var guest = Client(factory, seed.Guest);
+        using var anonymous = factory.CreateClient();
+        var state = await State(guest, seed, ct);
+        var now = seed.Clock.GetUtcNow();
+        Notification Read(Guid userId) => new()
+        {
+            UserId = userId, Type = NotificationType.TaskActivity, Title = "Read activity",
+            IssuedAt = now, UpdatedAt = now, Revision = 2, ReadRevision = 2, ReadAt = now.AddMinutes(-1)
+        };
+        var read = Enumerable.Range(0, 40).Select(_ => Read(seed.Guest.Id)).ToArray();
+        var boardRead = Read(seed.Guest.Id);
+        boardRead.BoardId = seed.Board.Id; boardRead.MembershipInstanceId = state.MembershipInstanceId;
+        var stale = Read(seed.Guest.Id);
+        stale.BoardId = seed.Board.Id; stale.MembershipInstanceId = Guid.NewGuid();
+        var foreign = Read(seed.Outsider.Id);
+        var partiallyRead = Read(seed.Guest.Id);
+        partiallyRead.Revision = 3; // ReadAt alone does not make the latest activity read.
+        var unread = Read(seed.Guest.Id);
+        unread.BoardId = seed.Board.Id; unread.MembershipInstanceId = state.MembershipInstanceId;
+        unread.ReadRevision = 0; unread.ReadAt = null;
+        var dismissed = Read(seed.Guest.Id);
+        dismissed.DismissedAt = now.AddHours(-1);
+        await using (var db = postgres.CreateContext())
+        {
+            db.Notifications.AddRange(read);
+            db.Notifications.AddRange(boardRead, stale, foreign, partiallyRead, unread, dismissed);
+            await db.SaveChangesAsync(ct);
+        }
+        const string path = "/api/notifications/dismiss-read";
+        Assert.Equal(HttpStatusCode.Unauthorized, (await anonymous.PostAsync(path, null, ct)).StatusCode);
+        var before = (await guest.GetFromJsonAsync<NotificationPageDto>("/api/notifications/page", ct))!;
+        Assert.Equal(30, before.Items.Count);
+        Assert.NotNull(before.NextCursor);
+        // Ownership always comes from authentication, even if a client sends an unrelated ID.
+        using var response = await guest.PostAsJsonAsync(path, new { userId = seed.Outsider.Id }, ct);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal("no-store", response.Headers.CacheControl!.ToString());
+        Assert.Equal(41, (await response.Content.ReadFromJsonAsync<DismissReadNotificationsDto>(ct))!.DismissedCount);
+        var after = (await guest.GetFromJsonAsync<NotificationPageDto>("/api/notifications/page", ct))!;
+        Assert.Equal(2, after.TotalCount); Assert.Equal(2, after.UnreadCount);
+        Assert.All(after.Items, item => Assert.True(item.IsUnread));
+        using var repeated = await guest.PostAsync(path, null, ct);
+        Assert.Equal(0, (await repeated.Content.ReadFromJsonAsync<DismissReadNotificationsDto>(ct))!.DismissedCount);
+        await using (var db = postgres.CreateContext())
+        {
+            var saved = await db.Notifications.AsNoTracking().ToDictionaryAsync(item => item.Id, ct);
+            Assert.All(read.Append(boardRead), item =>
+            {
+                Assert.Equal(now, saved[item.Id].DismissedAt);
+                Assert.Equal(item.ReadAt, saved[item.Id].ReadAt);
+            });
+            Assert.All(new[] { stale, foreign, partiallyRead, unread }, item => Assert.Null(saved[item.Id].DismissedAt));
+            Assert.Equal(dismissed.DismissedAt, saved[dismissed.Id].DismissedAt);
+            Assert.Single(await db.NotificationWork.Where(item => item.Kind == NotificationWorkKind.StateChanged && item.UserId == seed.Guest.Id).ToArrayAsync(ct));
+        }
+    }
+
+    [Fact]
     public async Task Reminder_category_disable_prevents_generation_but_sound_mute_does_not()
     {
         var ct = TestContext.Current.CancellationToken;

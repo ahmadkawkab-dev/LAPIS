@@ -1,3 +1,4 @@
+import { LoadingSkeleton } from "../../components/ui/LoadingSkeleton";
 import { memo, useEffect, useId, useLayoutEffect, useRef, useState, type RefObject } from "react";
 import { Bell, ArrowDown, CalendarClock, ImagePlus, RefreshCw, Send, Settings, X } from "lucide-react";
 import { Avatar } from "../../components/ui/Avatar";
@@ -81,7 +82,7 @@ export function ChatPanel({ controller, snapshot, boardTitle, onClose, scrollPos
     return () => { clearTimeout(timer); request.abort(); };
   }, [controller.boardId, query]);
   function selectMention(member: typeof members[number]) {
-    if (!query || mentions.length >= 10) return;
+    if (!query || !member || mentions.length >= 10) return;
     const caret = composer.current?.selectionStart ?? query.start;
     const token = `@${member.username}`;
     const draft = snapshot.draft.slice(0, query.start) + token + " " + snapshot.draft.slice(caret);
@@ -213,9 +214,9 @@ export function ChatPanel({ controller, snapshot, boardTitle, onClose, scrollPos
       {snapshot.joined?.isOwner && !snapshot.revoked && <Button ref={settingsButton} variant="quiet" size="compact"
         className="wk-icon-button" aria-label="Chat settings" aria-expanded={controls} onClick={() => {
           controller.stopTyping(); setScheduleOpen(false); setControls(value => !value);
-        }}><Settings size={16} /></Button>}
-      <Button variant="quiet" size="compact" className="wk-icon-button" aria-label="Your chat notifications" title="Your chat notifications" aria-expanded={notificationSettings} onClick={() => setNotificationSettings(value => !value)}><Bell size={16} /></Button>
-      <IconButton label="Refresh chat" disabled={snapshot.revoked || snapshot.syncing} onClick={() => void controller.refresh()}><RefreshCw size={16} /></IconButton>
+        }}><Settings size={16} aria-hidden="true" /></Button>}
+      <Button variant="quiet" size="compact" className="wk-icon-button" aria-label="Your chat notifications" title="Your chat notifications" aria-expanded={notificationSettings} onClick={() => setNotificationSettings(value => !value)}><Bell size={16} aria-hidden="true" /></Button>
+      <IconButton label="Refresh chat" disabled={snapshot.revoked || snapshot.syncing} onClick={() => void controller.refresh()}><RefreshCw size={16} aria-hidden="true" /></IconButton>
       <Button ref={closeButton} variant="quiet" size="compact" className="wk-icon-button" aria-label="Close chat" onClick={onClose}><X size={18} /></Button>
     </header>
     {notificationSettings && <BoardNotificationPreferences key={controller.boardId} boardId={controller.boardId} />}
@@ -228,7 +229,7 @@ export function ChatPanel({ controller, snapshot, boardTitle, onClose, scrollPos
     {controls && snapshot.joined?.isOwner && !snapshot.revoked ? <ChatControls controller={controller} snapshot={snapshot}
       onBack={() => { setControls(false); queueMicrotask(() => settingsButton.current?.focus()); }} /> : <>
     <div className="chat-history" ref={list} onScroll={remember} tabIndex={0} aria-label="Chat history" aria-busy={!snapshot.loaded || snapshot.loadingOlder}>
-      {!snapshot.loaded && !snapshot.revoked && <p className="chat-empty">Loading messages…</p>}
+      {!snapshot.loaded && !snapshot.revoked && <LoadingSkeleton layout="chat" label="Loading messages…" />}
       {snapshot.loaded && snapshot.hasOlder && <Button className="chat-older" variant="quiet" size="compact" disabled={snapshot.loadingOlder} onClick={() => void older()}>
         {snapshot.loadingOlder ? "Loading earlier messages…" : "Earlier messages"}</Button>}
       {snapshot.loaded && !snapshot.messages.length && !snapshot.pending.length && <div className="chat-empty"><p>No messages yet.</p><p>Start a conversation with this board’s members.</p></div>}
@@ -247,7 +248,7 @@ export function ChatPanel({ controller, snapshot, boardTitle, onClose, scrollPos
       </ol>
     </div>
     {(snapshot.unseen > 0 || snapshot.windowHasNewer) && <Button variant="secondary" size="compact" className="chat-new" onClick={() => void latest()}>
-      <ArrowDown size={14} />{snapshot.unseen > 0 ? `${snapshot.unseen} new message${snapshot.unseen === 1 ? "" : "s"}` : "Latest messages"}</Button>}
+      <ArrowDown size={14} aria-hidden="true" />{snapshot.unseen > 0 ? `${snapshot.unseen} new message${snapshot.unseen === 1 ? "" : "s"}` : "Latest messages"}</Button>}
     <div className="chat-typing" role="status" aria-live="polite">{typingLabel(snapshot.typing)}</div>
     {scheduleOpen ? <ChatScheduledTaskComposer controller={controller} draft={snapshot.scheduledDraft}
       canSchedule={controller.canSchedule(now)} hint={snapshot.revoked ? "Chat access ended." : muted ? "You’re muted in this chat." :
@@ -267,13 +268,13 @@ export function ChatPanel({ controller, snapshot, boardTitle, onClose, scrollPos
         onChange={event => { const draft = event.target.value; setMentions(editMentions(snapshot.draft, draft, mentions));
           setQuery(snapshot.selectedFile ? null : mentionQuery(draft, event.target.selectionStart)); controller.setDraft(draft); controller.typingActivity(); }}
         onClick={event => setQuery(snapshot.selectedFile ? null : mentionQuery(snapshot.draft, event.currentTarget.selectionStart))}
-        role="combobox" aria-autocomplete="list" aria-haspopup="listbox" aria-activedescendant={members.length ? `chat-mention-${memberIndex}` : undefined}
-        aria-expanded={members.length > 0} aria-controls={members.length ? "chat-mention-members" : undefined}
+        aria-autocomplete="list" aria-haspopup="listbox" aria-activedescendant={members[memberIndex] ? `chat-mention-${memberIndex}` : undefined}
+        aria-controls={members.length ? "chat-mention-members" : undefined}
         onBlur={() => controller.stopTyping()}
         onKeyDown={event => {
           if (members.length && !event.nativeEvent.isComposing) {
             if (event.key === "ArrowDown" || event.key === "ArrowUp") { event.preventDefault(); setMemberIndex(value => (value + (event.key === "ArrowDown" ? 1 : members.length - 1)) % members.length); return; }
-            if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); selectMention(members[memberIndex]); return; }
+            if (event.key === "Enter" && !event.shiftKey && members[memberIndex]) { event.preventDefault(); selectMention(members[memberIndex]); return; }
             if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); setQuery(null); return; }
           }
           if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) { event.preventDefault(); send(); } }} />
@@ -293,7 +294,7 @@ export function ChatPanel({ controller, snapshot, boardTitle, onClose, scrollPos
         <p id={hintId}>{snapshot.revoked ? "Chat access ended." : muted ? "You’re muted in this chat." :
         wait > 0 ? `You can send again in ${wait}s` : "Enter to send · Shift + Enter for a new line"}
         {snapshot.draft.length > (snapshot.selectedFile ? 1500 : 3500) && <span> · {snapshot.draft.length}/{snapshot.selectedFile ? "2,000" : "4,000"}</span>}</p>
-        <Button type="submit" size="compact" disabled={!canSend} aria-label="Send message"><Send size={16} /><span>Send</span></Button></div>
+        <Button type="submit" size="compact" disabled={!canSend} aria-label="Send message"><Send size={16} aria-hidden="true" /><span>Send</span></Button></div>
     </form>}</>}
   </aside>;
 }

@@ -28,6 +28,7 @@ public sealed record NotificationDto(Guid Id, string Type, string Title, string?
 public sealed record NotificationPageDto(IReadOnlyList<NotificationDto> Items, string? NextCursor,
     int TotalCount, int UnreadCount);
 public sealed record NotificationUnreadCountDto(int UnreadCount);
+public sealed record DismissReadNotificationsDto(int DismissedCount);
 
 public static class NotificationEndpoints
 {
@@ -103,6 +104,24 @@ public static class NotificationEndpoints
             await db.SaveChangesAsync(ct);
             await transaction.CommitAsync(ct);
             return Results.NoContent();
+        });
+        group.MapPost("/dismiss-read", async (HttpContext context, WuknaDbContext db, TimeProvider clock,
+            CancellationToken ct) =>
+        {
+            if (!TryGetUserId(context, out var userId)) return Results.Unauthorized();
+            await using var transaction = await db.Database.BeginTransactionAsync(ct);
+            var now = clock.GetUtcNow();
+            // Compare current revisions in the UPDATE, so new unread activity is never dismissed.
+            var dismissed = await Visible(db, userId)
+                .Where(item => item.DismissedAt == null && item.ReadRevision >= item.Revision)
+                .ExecuteUpdateAsync(setters => setters.SetProperty(item => item.DismissedAt, now), ct);
+            if (dismissed > 0)
+            {
+                NotificationSources.StateChanged(db, userId, now);
+                await db.SaveChangesAsync(ct);
+            }
+            await transaction.CommitAsync(ct);
+            return Results.Ok(new DismissReadNotificationsDto(dismissed));
         });
         group.MapPost("/{id:guid}/read", async (Guid id, long? revision, HttpContext context,
             WuknaDbContext db, TimeProvider clock, CancellationToken ct) =>

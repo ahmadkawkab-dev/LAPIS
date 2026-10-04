@@ -434,6 +434,8 @@ public sealed class ChatRealtimeTests(PostgresFixture postgres)
         Assert.True(await db.BoardMemberships.AnyAsync(member => member.BoardId == seed.Board.Id && member.UserId == seed.Guest.Id, ct));
         Assert.Equal(joined.MembershipInstanceId, (await db.BoardMemberChatStates.SingleAsync(ct)).MembershipInstanceId);
         Assert.False(await db.ChatOutboxEvents.AnyAsync(ct));
+        Assert.False(await db.NotificationWork.AnyAsync(ct));
+        Assert.False(await db.Notifications.AnyAsync(ct));
         await guest.InvokeAsync("JoinBoard", seed.Board.Id, ct);
     }
 

@@ -42,16 +42,17 @@ export function Sidebar({
     const shortcut = (event: globalThis.KeyboardEvent) => {
       if (event.key.toLowerCase() === "k" && (event.metaKey || event.ctrlKey)) {
         event.preventDefault();
-        searchRef.current?.focus();
+        if (collapsed) onToggle();
+        requestAnimationFrame(() => searchRef.current?.focus());
       }
     };
     window.addEventListener("keydown", shortcut);
     return () => window.removeEventListener("keydown", shortcut);
-  }, []);
+  }, [collapsed, onToggle]);
 
   async function submitBoard(event: FormEvent) {
     event.preventDefault();
-    if (!createTitle.trim()) return;
+    if (createBusy || !createTitle.trim()) return;
     setCreateBusy(true);
     setCreateError("");
     try {
@@ -104,7 +105,7 @@ export function Sidebar({
         <span className="wk-sidebar-brand-copy"><strong>Wukna</strong><small>Personal workspace</small></span>
       </button>
       <IconButton label={collapsed ? "Expand sidebar" : "Collapse sidebar"} aria-expanded={!collapsed} onClick={onToggle}>
-        {collapsed ? <PanelLeftOpen size={17} /> : <PanelLeftClose size={17} />}
+        {collapsed ? <PanelLeftOpen size={17} aria-hidden="true" /> : <PanelLeftClose size={17} aria-hidden="true" />}
       </IconButton>
     </div>
 
@@ -141,11 +142,11 @@ export function Sidebar({
       <Settings2 size={15} aria-hidden="true" />
     </button>
 
-    {creating && <Dialog title="New board" onClose={() => setCreating(false)}>
+    {creating && <Dialog title="New board" busy={createBusy} onClose={() => setCreating(false)}>
       <form className="wk-sidebar-create-form" onSubmit={(event) => void submitBoard(event)}>
-        <label>Board name<input autoFocus maxLength={100} required value={createTitle} onChange={(event) => setCreateTitle(event.target.value)} /></label>
+        <label>Board name<input autoFocus maxLength={200} required value={createTitle} onChange={(event) => setCreateTitle(event.target.value)} /></label>
         {createError && <p role="alert">{createError}</p>}
-        <div className="wk-dialog-actions"><Button type="submit" disabled={createBusy || !createTitle.trim()}>Create board</Button>
+        <div className="wk-dialog-actions"><Button type="submit" loading={createBusy} loadingLabel="Creating…" disabled={!createTitle.trim()}>Create board</Button>
           <Button variant="secondary" disabled={createBusy} onClick={() => setCreating(false)}>Cancel</Button></div>
       </form>
     </Dialog>}

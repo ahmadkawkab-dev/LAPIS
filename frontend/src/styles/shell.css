@@ -6,7 +6,7 @@
   grid-template-columns: 17rem minmax(0, 1fr);
   color: var(--foreground);
   background: var(--background);
-  transition: grid-template-columns var(--motion-panel) var(--ease-settle);
+
 }
 
 .wk-app-shell--collapsed { grid-template-columns: 5.25rem minmax(0, 1fr); }
@@ -80,7 +80,7 @@
 .wk-sidebar-shared-label { margin: var(--space-5) var(--space-3) var(--space-2); color: var(--muted-foreground); font-size: var(--text-meta); font-weight: 600; letter-spacing: .08em; text-transform: uppercase; }
 .wk-board-link { width: 100%; display: grid; grid-template-columns: .5rem minmax(0, 1fr) auto; align-items: center; gap: var(--space-3); padding: var(--space-2) var(--space-3); }
 .wk-board-link-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.wk-nav-badge { display: inline-flex; flex: none; align-items: center; justify-content: center; min-width: 1.25rem; height: 1.25rem; padding-inline: .25rem; border-radius: 999px; background: var(--primary); color: var(--primary-foreground); font-size: .625rem; font-weight: 600; font-variant-numeric: tabular-nums; line-height: 1; white-space: nowrap; }
+.wk-nav-badge { display: inline-flex; flex: none; align-items: center; justify-content: center; min-width: 1.25rem; height: 1.25rem; padding-inline: .25rem; border-radius: 999px; background: var(--primary); color: var(--primary-foreground); font-size: var(--text-meta); font-weight: 600; font-variant-numeric: tabular-nums; line-height: 1; white-space: nowrap; }
 .wk-shell-link > .wk-nav-badge { margin-inline-start: auto; }
 .wk-board-link--active { color: var(--foreground); background: var(--selected); font-weight: 600; }
 .wk-board-dot { width: .45rem; height: .45rem; border-radius: 50%; background: var(--pigment-clay); box-shadow: 0 0 0 3px color-mix(in srgb, var(--pigment-clay) 13%, transparent); }
@@ -111,7 +111,7 @@
 
 .wk-account-page { width: min(52rem, 100%); min-height: 100%; margin-inline: auto; padding: clamp(var(--space-5), 5vw, var(--space-10)); display: grid; align-content: start; gap: var(--space-5); overflow-y: auto; }
 .wk-account-page-heading { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-4); }
-.wk-account-page-heading h1 { margin: 0; color: var(--foreground); font-family: var(--font-editorial); font-size: clamp(1.5rem, 4vw, 2rem); font-weight: 450; }
+.wk-account-page-heading h1 { margin: 0; color: var(--foreground); font-family: var(--font-editorial); font-size: var(--text-page-title); font-weight: 450; }
 .wk-account-tabs { display: flex; gap: var(--space-2); border-block-end: 1px solid var(--border); }
 .wk-account-tabs button { min-height: var(--target-size); padding: var(--space-2) var(--space-3); border: 0; border-block-end: 2px solid transparent; color: var(--muted-foreground); background: transparent; cursor: pointer; }
 .wk-account-tabs button[aria-current="page"] { border-block-end-color: var(--primary); color: var(--foreground); font-weight: 600; }
@@ -183,10 +183,10 @@
 /* Figma account layout; profile and authentication handlers stay in AccountPanel. */
 .wk-account-page { width: 100%; max-width: none; min-height: 100%; display: block; margin: 0; padding: 0; overflow: visible; background: var(--background); container-type: inline-size; }
 .wk-account-page-heading { min-height: 5.8125rem; padding: 1.125rem 1.75rem; border-bottom: 1px solid var(--border); background: var(--surface); }
-.wk-account-eyebrow { color: var(--muted-foreground); font-size: .625rem; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
-.wk-account-page-heading h1 { margin: .125rem 0; font-family: var(--font-ui); font-size: 1.25rem; font-weight: 700; line-height: 1.2; }
+.wk-account-eyebrow { color: var(--muted-foreground); font-size: var(--text-meta); font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
+.wk-account-page-heading h1 { margin: .125rem 0; font-family: var(--font-ui); font-size: var(--text-page-title); font-weight: 700; line-height: 1.2; }
 .wk-account-page-heading p { margin: .125rem 0 0; color: var(--muted-foreground); font-size: .75rem; }
-.wk-account-page-heading .wk-button { min-height: 2.25rem; padding: .375rem .75rem; font-size: .75rem; }
+.wk-account-page-heading .wk-button {  padding: .375rem .75rem;  }
 .wk-account-layout { display: grid; grid-template-columns: 11rem minmax(0, 1fr); align-content: start; gap: 1.5rem; min-height: calc(100dvh - 5.8125rem); background: var(--background); }
 .wk-account-tabs { display: flex; flex-direction: column; align-items: stretch; gap: .125rem; padding: 1rem .75rem; border: 0; border-right: 1px solid var(--border); }
 .wk-account-tabs button { min-height: 2.125rem; padding: .375rem .625rem; border: 0; border-radius: .375rem; font-size: .75rem; text-align: start; }
@@ -198,13 +198,13 @@
 .wk-profile-form .wk-account-section h2 { margin: 0; font-size: .875rem; }
 .wk-profile-form .wk-field { align-content: start; }
 .wk-profile-photo-row { padding-block: .25rem .5rem; }
-.wk-profile-photo-actions .wk-button { min-height: 2.25rem; padding: .375rem .625rem; font-size: .75rem; }
+.wk-profile-photo-actions .wk-button {  padding: .375rem .625rem;  }
 .wk-profile-form .wk-field:last-of-type { grid-column: 1 / -1; }
 .wk-account-main .wk-account-section { padding: .75rem 0 1.25rem; border-bottom: 1px solid var(--border); }
 .wk-account-main .wk-account-section h2 { font-size: .875rem; }
 .wk-account-main .wk-field label { font-size: .75rem; }
-.wk-account-main .wk-field input { min-height: 2.25rem; padding: .375rem .5rem; background: var(--surface); font-size: .75rem; }
-.wk-account-main .wk-field small { font-size: .6875rem; }
+.wk-account-main .wk-field input { min-height: 2.25rem; padding: .375rem .5rem; background: var(--surface); font-size: var(--text-control); }
+.wk-account-main .wk-field small { font-size: var(--text-meta); }
 .wk-account-legal { padding: .75rem 1.25rem; margin: 0; border-top: 1px solid var(--border); }
 @container (max-width: 72rem) { .wk-account-layout { grid-template-columns: 11.5rem minmax(0, 1fr); gap: 1rem; } }
 @container (max-width: 44rem) {
@@ -216,8 +216,8 @@
   .wk-account-page-heading { min-height: 4.5rem; padding: .75rem 1rem; }
 }
 @media (max-width: 480px) {
-  .wk-account-page-heading h1 { font-size: 1rem; }
-  .wk-account-page-heading .wk-button { padding: .375rem .5rem; font-size: .6875rem; }
+  .wk-account-page-heading h1 { font-size: var(--text-page-title); }
+  .wk-account-page-heading .wk-button { padding: .375rem .5rem;  }
   .wk-profile-form .wk-account-section { grid-template-columns: minmax(0, 1fr); }
 }
 
@@ -245,19 +245,19 @@
   flex: none;
   place-items: center;
   border-radius: .5rem;
-  color: #fff;
-  background: #171815;
+  color: var(--primary-foreground);
+  background: var(--primary);
   font-size: .8125rem;
   font-weight: 800;
 }
 .wk-sidebar-brand-copy { min-width: 0; display: grid; line-height: 1.2; }
 .wk-sidebar-brand-copy strong { font-size: .75rem; font-weight: 700; }
-.wk-sidebar-brand-copy small { color: var(--muted-foreground); font-size: .625rem; white-space: nowrap; }
+.wk-sidebar-brand-copy small { color: var(--muted-foreground); font-size: var(--text-meta); white-space: nowrap; }
 .wk-sidebar-header > .wk-icon-button { width: 1.875rem; min-width: 1.875rem; min-height: 1.875rem; padding: .25rem; }
 .wk-sidebar-utilities { display: grid; gap: .375rem; margin-block: 1.25rem; }
 .wk-sidebar-new { justify-self: start; min-height: 2.25rem; padding: .375rem .75rem; font-size: .75rem; }
 .wk-sidebar-search { min-width: 0; height: 2rem; display: flex; align-items: center; gap: .5rem; padding: 0 .5625rem; border: 1px solid var(--border); border-radius: .375rem; color: var(--muted-foreground); background: var(--surface); }
-.wk-sidebar-search input { min-width: 0; width: 100%; padding: 0; border: 0; outline: 0; color: var(--foreground); background: transparent; font-size: .75rem; }
+.wk-sidebar-search input { min-width: 0; width: 100%; padding: 0; border: 0; outline: 0; color: var(--foreground); background: transparent; font-size: var(--text-control); }
 .wk-sidebar-search:focus-within { outline: 2px solid var(--focus); outline-offset: 2px; }
 .wk-sidebar-search input:focus-visible { outline: 0; box-shadow: none; }
 .wk-sidebar-search input::placeholder { color: var(--muted-foreground); }
@@ -267,19 +267,19 @@
 .wk-shell-link { min-height: 2.125rem; gap: .5625rem; padding: .375rem .5625rem; font-size: .75rem; font-weight: 500; }
 .wk-shell-link--active { color: var(--selected-foreground); background: var(--selected); }
 .wk-sidebar-boards { margin-block-start: 1.25rem; }
-.wk-sidebar-boards > p, .wk-sidebar-shared-label { margin-inline: .5625rem; font-size: .625rem; }
+.wk-sidebar-boards > p, .wk-sidebar-shared-label { margin-inline: .5625rem; font-size: var(--text-meta); }
 .wk-board-link { min-height: 2rem; gap: .5rem; padding: .375rem .5625rem; font-size: .75rem; }
 .wk-board-dot { width: .375rem; height: .375rem; box-shadow: none; }
 .wk-sidebar-search-empty { margin: .5rem; color: var(--muted-foreground); font-size: .75rem; }
 .wk-sidebar-account { grid-template-columns: 1.75rem minmax(0, 1fr) auto; gap: .5625rem; padding: .5rem 0 0; border-radius: 0; }
 .wk-sidebar-account-copy strong { font-size: .75rem; font-weight: 500; }
-.wk-sidebar-account-copy small { overflow: hidden; font-size: .625rem; text-overflow: ellipsis; white-space: nowrap; }
+.wk-sidebar-account-copy small { overflow: hidden; font-size: var(--text-meta); text-overflow: ellipsis; white-space: nowrap; }
 .wk-sidebar--collapsed { padding-inline: .625rem; }
 .wk-sidebar--collapsed .wk-sidebar-header { flex-direction: column; }
 .wk-sidebar--collapsed .wk-sidebar-brand { flex: none; }
 .wk-sidebar--collapsed .wk-sidebar-brand-copy,
 .wk-sidebar--collapsed .wk-sidebar-utilities .wk-sidebar-search,
-.wk-sidebar--collapsed .wk-sidebar-new span,
+.wk-sidebar--collapsed .wk-sidebar-new .wk-button-content > span,
 .wk-sidebar--collapsed .wk-shell-link span,
 .wk-sidebar--collapsed .wk-sidebar-boards,
 .wk-sidebar--collapsed .wk-sidebar-account-copy,
@@ -288,7 +288,7 @@
 .wk-sidebar--collapsed .wk-shell-link { justify-content: center; padding-inline: 0; }
 .wk-sidebar--collapsed .wk-sidebar-account { display: flex; justify-content: center; }
 .wk-sidebar--collapsed .wk-shell-link { position: relative; }
-.wk-sidebar--collapsed .wk-shell-link > .wk-nav-badge { display: inline-flex; position: absolute; inset-block-start: -.125rem; inset-inline-end: 0; min-width: 1rem; height: 1rem; padding-inline: .1875rem; font-size: .5625rem; }
+.wk-sidebar--collapsed .wk-shell-link > .wk-nav-badge { display: inline-flex; position: absolute; inset-block-start: -.125rem; inset-inline-end: 0; min-width: 1rem; height: 1rem; padding-inline: .1875rem; font-size: var(--text-meta); }
 .wk-sidebar-create-form { display: grid; gap: 1rem; }
 .wk-sidebar-create-form label { display: grid; gap: .375rem; font-weight: 600; }
 .wk-sidebar-create-form input { width: 100%; min-height: 2.75rem; padding: .5rem .75rem; border: 1px solid var(--control-border); border-radius: var(--radius-control); color: var(--foreground); background: var(--surface); }
@@ -298,11 +298,29 @@
   .wk-app-shell, .wk-app-shell--collapsed { padding-block: 3.75rem calc(4.25rem + env(safe-area-inset-bottom)); }
   .wk-mobile-header { min-height: 3.75rem; background: var(--surface); backdrop-filter: none; }
   .wk-mobile-brand { align-items: center; gap: .5rem; font-size: .875rem; }
-  .wk-mobile-brand .wk-sidebar-monogram { width: 1.5rem; height: 1.5rem; font-size: .6875rem; }
+  .wk-mobile-brand .wk-sidebar-monogram { width: 1.5rem; height: 1.5rem; font-size: var(--text-meta); }
   .wk-mobile-nav { grid-template-columns: repeat(4, minmax(0, 1fr)); background: var(--surface); backdrop-filter: none; }
-  .wk-mobile-nav-item { gap: .125rem; font-size: .625rem; }
+  .wk-mobile-nav-item { gap: .125rem; font-size: var(--text-meta); }
   .wk-mobile-nav-item--active { color: var(--primary); }
   .wk-mobile-more-links { display: grid; gap: .25rem; }
   .wk-mobile-more-links button { min-height: 2.75rem; display: flex; align-items: center; gap: .75rem; padding: .5rem .75rem; border: 0; border-radius: var(--radius-control); color: var(--foreground); background: transparent; text-align: start; }
   .wk-mobile-more-links button:hover { background: var(--hover); }
+}
+
+/* Shared control density and navigation focus. */
+.wk-shell-main { scroll-padding-block: var(--space-6); }
+.wk-shell-main:focus { outline: none; }
+.wk-shell-link, .wk-board-link { min-height: var(--control-size); font-size: var(--text-control); }
+.wk-sidebar-header > .wk-icon-button { min-width: var(--control-size); width: var(--control-size); min-height: var(--control-size); }
+.wk-sidebar-search { min-height: var(--control-size); border-color: var(--control-border); }
+.wk-sidebar-search kbd { font-size: var(--text-meta); }
+.wk-account-main .wk-field input { min-height: var(--target-size); font-size: var(--text-body); }
+.wk-account-tabs button { min-height: var(--target-size); font-size: var(--text-control); }
+.wk-account-page-heading > div, .wk-provider-row > div { min-width: 0; overflow-wrap: anywhere; }
+@media (max-width: 800px) {
+  html { scroll-padding-block: 5rem; }
+  .wk-mobile-nav-item { font-size: var(--text-meta); }
+  .wk-account-tabs { flex-wrap: wrap; }
+  .wk-account-page-heading h1 { font-size: var(--text-page-title); }
+  .wk-profile-photo-row { flex-wrap: wrap; }
 }

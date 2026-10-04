@@ -57,13 +57,13 @@ export function TaskPlanningPanel({ view, selectedListId, lists, zone, onView, o
       <div className="wk-task-view-links">{taskViews.map(({ key, label }) => <button key={key} className={!selectedListId && view === key ? "wk-task-view--active" : ""}
         aria-current={!selectedListId && view === key ? "page" : undefined} onClick={() => onView(key)}>{label}</button>)}</div>
       <div className="wk-task-list-heading"><span className="wk-task-eyebrow">Lists</span>
-        <IconButton label="New task list" onClick={() => open("create")}><Plus size={16} /></IconButton></div>
+        <IconButton label="New task list" onClick={() => open("create")}><Plus size={16} aria-hidden="true" /></IconButton></div>
       <div className="wk-task-list-links"><button className="wk-task-new-list-mobile" onClick={() => open("create")}><Plus size={15} aria-hidden="true" /> New list</button>
         {lists.map((list) => <button key={list.id} className={selectedListId === list.id ? "wk-task-view--active" : ""}
           aria-current={selectedListId === list.id ? "page" : undefined} onClick={() => onList(list.id)}>{list.name}</button>)}
         {selectedList && <div className="wk-task-list-actions">
-          <IconButton label={`Rename ${selectedList.name}`} onClick={() => open("rename")}><Pencil size={15} /></IconButton>
-          <IconButton label={`Delete ${selectedList.name}`} onClick={() => open("delete")}><Trash2 size={15} /></IconButton>
+          <IconButton label={`Rename ${selectedList.name}`} onClick={() => open("rename")}><Pencil size={15} aria-hidden="true" /></IconButton>
+          <IconButton label={`Delete ${selectedList.name}`} onClick={() => open("delete")}><Trash2 size={15} aria-hidden="true" /></IconButton>
         </div>}
         <button className="wk-task-zone-mobile" onClick={() => open("zone")}><Settings2 size={15} aria-hidden="true" /> Time zone</button>
       </div>
@@ -71,29 +71,29 @@ export function TaskPlanningPanel({ view, selectedListId, lists, zone, onView, o
         <Settings2 size={15} aria-hidden="true" /> Planning time zone <small>{zone}</small>
       </button>
     </nav>
-    {(mode === "create" || mode === "rename") && <Dialog title={mode === "create" ? "New list" : "Rename list"} onClose={() => setMode(null)}>
+    {(mode === "create" || mode === "rename") && <Dialog busy={busy} title={mode === "create" ? "New list" : "Rename list"} onClose={() => setMode(null)}>
       <form className="wk-task-dialog-form" onSubmit={(event) => void saveList(event)}>
         <label>List name <input value={name} maxLength={80} required onChange={(event) => setName(event.target.value)} /></label>
         {error && <p className="wk-task-error" role="alert">{error}</p>}
-        <div className="wk-dialog-actions"><Button type="submit" disabled={busy || !name.trim()}>{mode === "create" ? "Create list" : "Save name"}</Button>
-          <Button variant="secondary" disabled={busy} onClick={() => setMode(null)}>Cancel</Button></div>
+        <div className="wk-dialog-actions"><Button type="submit" loading={busy} disabled={!name.trim()}>{mode === "create" ? "Create list" : "Save name"}</Button>
+          <Button variant="secondary" loading={busy} onClick={() => setMode(null)}>Cancel</Button></div>
       </form>
     </Dialog>}
-    {mode === "delete" && selectedList && <Dialog title="Delete list?" onClose={() => setMode(null)} urgent>
+    {mode === "delete" && selectedList && <Dialog busy={busy} title="Delete list?" onClose={() => setMode(null)} urgent>
       <p>“{selectedList.name}” and every task in it will be permanently deleted.</p>
       {error && <p className="wk-task-error" role="alert">{error}</p>}
-      <div className="wk-dialog-actions"><Button variant="danger" disabled={busy} onClick={() => void remove()}>Delete list</Button>
-        <Button variant="secondary" disabled={busy} onClick={() => setMode(null)}>Cancel</Button></div>
+      <div className="wk-dialog-actions"><Button variant="danger" loading={busy} onClick={() => void remove()}>Delete list</Button>
+        <Button variant="secondary" loading={busy} onClick={() => setMode(null)}>Cancel</Button></div>
     </Dialog>}
-    {mode === "zone" && <Dialog title="Planning time zone" onClose={() => setMode(null)}>
+    {mode === "zone" && <Dialog busy={busy} title="Planning time zone" onClose={() => setMode(null)}>
       <form className="wk-task-dialog-form" onSubmit={(event) => void saveZone(event)}>
         <p>This Week, Today, and Upcoming use this time zone. Existing scheduled times keep their own zones.</p>
         <label>Time zone <input value={zoneDraft} maxLength={100} required list="wk-time-zones"
           onChange={(event) => setZoneDraft(event.target.value)} /></label>
         {timeZoneOptions}
         {error && <p className="wk-task-error" role="alert">{error}</p>}
-        <div className="wk-dialog-actions"><Button type="submit" disabled={busy || !zoneDraft.trim()}>Save time zone</Button>
-          <Button variant="secondary" disabled={busy} onClick={() => setZoneDraft(Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC")}>Use device zone</Button></div>
+        <div className="wk-dialog-actions"><Button type="submit" loading={busy} disabled={!zoneDraft.trim()}>Save time zone</Button>
+          <Button variant="secondary" loading={busy} onClick={() => setZoneDraft(Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC")}>Use device zone</Button></div>
       </form>
     </Dialog>}
   </>;

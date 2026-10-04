@@ -1,8 +1,10 @@
 import { useId, useRef, useState, type FormEvent, type MouseEvent } from "react";
 import {
   CheckCircle2,
+  MoreHorizontal,
   Plus,
   Search,
+  Users,
 } from "lucide-react";
 import type { BoardListItemDto } from "../../api";
 import { AuthApiError, errorMessage } from "../../api";
@@ -62,7 +64,7 @@ function BoardCard({
   const detailsId = useId();
   const roleId = useId();
   const isOwner = board.role === 1;
-  const role = board.canEdit ? "Editor" : "Viewer";
+  const role = isOwner ? "Owner" : board.canEdit ? "Editor" : "Viewer";
   const counts = [
     plural(board.noteCount, "note"),
     plural(board.taskListCount, "task list"),
@@ -74,7 +76,7 @@ function BoardCard({
       href={`/boards/${board.id}`}
       className="wk-board-card"
       aria-labelledby={titleId}
-      aria-describedby={isOwner ? detailsId : `${detailsId} ${roleId}`}
+      aria-describedby={`${detailsId} ${roleId}`}
       onClick={(event: MouseEvent<HTMLAnchorElement>) => {
         if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
         event.preventDefault();
@@ -98,7 +100,8 @@ function BoardCard({
         ) : null}
       </div>
       <div className="wk-board-card-footer">
-        {!isOwner && <span className="wk-board-role" id={roleId}>{role}</span>}
+        <span className="wk-board-role" id={roleId}>{role}</span>
+        <span className="wk-board-card-members"><Users size={14} aria-hidden="true" />{plural(board.memberCount, "member")}</span>
         <span className="wk-board-card-activity">
           <time dateTime={board.updatedAt} title={new Date(board.updatedAt).toLocaleString()}>
             Updated {relativeTime(board.updatedAt)}
@@ -108,8 +111,8 @@ function BoardCard({
     </a>
     {isOwner && (
       <div className="wk-board-card-actions">
-        <Button variant="quiet" onClick={() => setActionsOpen(true)}
-          aria-label={`Actions for ${board.title}`}>Board actions</Button>
+        <Button variant="quiet" size="compact" onClick={() => setActionsOpen(true)}
+          aria-label={`Actions for ${board.title}`}><MoreHorizontal size={16} aria-hidden="true" /> Manage board</Button>
       </div>
     )}
     {actionsOpen && (
@@ -182,6 +185,7 @@ export function BoardLanding({
   const [title, setTitle] = useState("");
   const [createError, setCreateError] = useState("");
   const [busy, setBusy] = useState(false);
+  const createTrigger = useRef<HTMLButtonElement>(null);
   const lastLimitWarningAt = useRef(0);
   const normalizedQuery = query.trim().toLocaleLowerCase();
   const shown = normalizedQuery
@@ -216,7 +220,7 @@ export function BoardLanding({
       return;
     }
     const nextTitle = title.trim();
-    if (!nextTitle) return;
+    if (busy || !nextTitle) return;
     setBusy(true);
     setCreateError("");
     try {
@@ -237,20 +241,22 @@ export function BoardLanding({
   }
 
   return (
-    <section className="wk-board-landing" aria-busy={loading}>
+    <section className="wk-board-landing" aria-labelledby="wk-boards-title" aria-busy={loading}>
       <div className="wk-board-landing-inner">
         <header className="wk-board-landing-header">
           <div>
-            <h1>Boards</h1>
+            <span className="wk-board-landing-eyebrow">Your workspace</span>
+            <h1 id="wk-boards-title">Boards</h1>
+            <p>A space for your ideas, notes and shared work.</p>
           </div>
-          <Button onClick={openCreateForm} aria-disabled={atBoardLimit}>
+          <Button ref={createTrigger} onClick={openCreateForm} aria-disabled={atBoardLimit} aria-expanded={creating} aria-controls="wk-create-board">
             <Plus size={18} aria-hidden="true" />
             New board
           </Button>
         </header>
 
         {creating ? (
-          <form className="wk-create-board" onSubmit={submit}>
+          <form id="wk-create-board" className="wk-create-board" onSubmit={submit}>
             <div>
               <label htmlFor="new-board-title">Name your new board</label>
               <input
@@ -260,18 +266,20 @@ export function BoardLanding({
                 maxLength={200}
                 placeholder="For example, Autumn campaign"
                 aria-invalid={createError ? "true" : undefined}
+                aria-describedby={createError ? "new-board-error" : undefined} disabled={busy} required
                 onChange={(event) => setTitle(event.target.value)}
               />
-              {createError ? <p role="alert">{createError}</p> : null}
+              {createError ? <p id="new-board-error" role="alert">{createError}</p> : null}
             </div>
-            <Button type="submit" disabled={busy || !title.trim()} aria-disabled={atBoardLimit}>
-              {busy ? "Creating…" : "Create board"}
+            <Button type="submit" loading={busy} disabled={!title.trim()} aria-disabled={atBoardLimit}>
+              Create board
             </Button>
             <Button
-              variant="quiet"
+              variant="quiet" disabled={busy}
               onClick={() => {
                 setCreating(false);
                 setCreateError("");
+                createTrigger.current?.focus();
               }}
             >
               Cancel
@@ -279,8 +287,8 @@ export function BoardLanding({
           </form>
         ) : null}
 
-        <div className="wk-board-search">
-          <Search size={19} aria-hidden="true" />
+        <div className="wk-board-library-toolbar"><div className="wk-board-search">
+          <Search size={16} aria-hidden="true" />
           <input
             type="search"
             value={query}
@@ -289,7 +297,10 @@ export function BoardLanding({
             onChange={(event) => setQuery(event.target.value)}
           />
         </div>
+          {!loading && !failure && <span className="wk-board-library-summary" role="status">{plural(shown.length, "board")}{normalizedQuery ? " found" : " in your workspace"}</span>}
+        </div>
 
+        <div className="wk-board-landing-body">
         {loading ? (
           <div role="status" aria-live="polite">
             <span className="wk-sr-only">Loading boards…</span>
@@ -316,6 +327,7 @@ export function BoardLanding({
                   <h2 id="owned-boards-heading">Your boards</h2>
                   <span aria-label={`${owned.length} ${owned.length === 1 ? "board" : "boards"}`}>{owned.length}</span>
                 </div>
+                <p>The boards you create and manage.</p>
               </div>
               {owned.length > 0 ? (
                 <BoardGrid boards={owned} navigate={navigate}
@@ -323,12 +335,12 @@ export function BoardLanding({
               ) : (
                 <div className="wk-board-state wk-board-state--primary">
                   <BrandMark />
-                  <h3>Your Wukna starts here.</h3>
-                  <p>Create your first board and begin gathering ideas.</p>
-                  <Button onClick={openCreateForm} aria-disabled={atBoardLimit}>
+                  <h3>{normalizedQuery ? "No matching boards of your own" : "Your Wukna starts here"}</h3>
+                  <p>{normalizedQuery ? "Try another title to find one of your boards." : "Create your first board and begin gathering ideas."}</p>
+                  {!normalizedQuery && <Button onClick={openCreateForm} aria-disabled={atBoardLimit}>
                     <Plus size={18} aria-hidden="true" />
                     Create your first board
-                  </Button>
+                  </Button>}
                 </div>
               )}
             </section>
@@ -339,16 +351,18 @@ export function BoardLanding({
                   <h2 id="shared-boards-heading">Shared with you</h2>
                   <span aria-label={`${shared.length} shared ${shared.length === 1 ? "board" : "boards"}`}>{shared.length}</span>
                 </div>
+                <p>Work together in spaces shared with you.</p>
               </div>
               {shared.length > 0 ? (
                 <BoardGrid boards={shared} navigate={navigate}
                   onRenameBoard={onRenameBoard} onDeleteBoard={onDeleteBoard} />
               ) : (
-                <p className="wk-board-secondary-empty">Nothing has been shared with you yet.</p>
+                <p className="wk-board-secondary-empty">{normalizedQuery ? "No shared boards match this search." : "Nothing has been shared with you yet."}</p>
               )}
             </section>
           </div>
         )}
+        </div>
       </div>
     </section>
   );

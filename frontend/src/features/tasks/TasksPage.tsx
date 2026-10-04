@@ -1,3 +1,4 @@
+import { LoadingSkeleton } from "../../components/ui/LoadingSkeleton";
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { Bell, CalendarDays, Check, ChevronRight, Clock3, Plus, SlidersHorizontal, Sparkles, X } from "lucide-react";
 import { errorMessage, planningSettingsApi, taskApi, taskListApi, taskReminderApi, taskTemplateApi, type PersonalTaskDto, type TaskListDto, type TaskTemplateDto, type TaskReminderDto } from "../../api";
@@ -59,7 +60,7 @@ function TaskQuickAdd({ view, today, zone, listId, onCreated }: {
       <label className="wk-sr-only" htmlFor="wk-new-task">New task</label>
       <input id="wk-new-task" value={title} onChange={(event) => setTitle(event.target.value)}
         maxLength={200} placeholder={view === "today" ? "Add to today" : "Add a task"} />
-      <Button size="compact" type="submit" disabled={busy || !title.trim()}>Add</Button>
+      <Button size="compact" type="submit" loading={busy} disabled={!title.trim()}>Add</Button>
     </div>
     <button type="button" className="wk-task-more" aria-expanded={expanded} onClick={() => setExpanded(!expanded)}>
       <CalendarDays size={16} aria-hidden="true" /> {date ? `${dateLabel(date)}${time ? ` · ${time}` : ""}` : "Date and time"} <ChevronRight size={15} aria-hidden="true" />
@@ -86,8 +87,23 @@ function TaskDetails({ task, today, defaultZone, lists, onClose, onChanged, onDe
   const [busy, setBusy] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [error, setError] = useState("");
+  const [narrow, setNarrow] = useState(() => window.matchMedia('(max-width: 980px)').matches);
+  useEffect(() => {
+    const media = window.matchMedia('(max-width: 980px)');
+    const update = () => setNarrow(media.matches);
+    media.addEventListener('change', update);
+    return () => media.removeEventListener('change', update);
+  }, []);
+  const details = useRef<HTMLElement>(null);
+  useEffect(() => {
+    if (narrow) return;
+    const origin = document.activeElement;
+    details.current?.querySelector<HTMLInputElement>('input')?.focus({ preventScroll: true });
+    return () => { if (origin instanceof HTMLElement && origin.isConnected) origin.focus({ preventScroll: true }); };
+  }, [narrow]);
   async function save(event: FormEvent) {
     event.preventDefault();
+    if (busy) return;
     setBusy(true); setError("");
     try { onChanged(await taskApi.update(task.id, taskWritePayload(title, description, date, time, zone, listId || null))); }
     catch (cause) { setError(errorMessage(cause)); }
@@ -99,9 +115,10 @@ function TaskDetails({ task, today, defaultZone, lists, onClose, onChanged, onDe
     catch (cause) { setError(errorMessage(cause)); setConfirmDelete(false); }
     finally { setBusy(false); }
   }
-  return <aside className="wk-task-details" aria-label="Task details">
+  const content = <aside ref={details} className="wk-task-details" aria-label="Task details"
+    onKeyDown={(event) => { if (event.key === 'Escape' && !busy && !confirmDelete) { event.preventDefault(); event.stopPropagation(); onClose(); } }}>
     <div className="wk-task-details-heading"><div><span className="wk-task-eyebrow">Task details</span><p>{taskSchedule(task, today)}</p></div>
-      <IconButton label="Close task details" onClick={onClose}><X size={18} /></IconButton></div>
+      <IconButton label="Close task details" disabled={busy} onClick={onClose}><X size={18} aria-hidden="true" /></IconButton></div>
     <form onSubmit={(event) => void save(event)}>
       <label>Title <input value={title} maxLength={200} required onChange={(event) => setTitle(event.target.value)} /></label>
       <label>Description <textarea value={description} maxLength={4000} rows={5} onChange={(event) => setDescription(event.target.value)} /></label>
@@ -111,18 +128,19 @@ function TaskDetails({ task, today, defaultZone, lists, onClose, onChanged, onDe
       <div className="wk-task-form-row"><label>Date <input type="date" value={date} onChange={(event) => { setDate(event.target.value); if (!event.target.value) setTime(""); }} /></label>
         <label>Time <input type="time" value={time} disabled={!date} onChange={(event) => setTime(event.target.value)} /></label></div>
       {time && <label>Time zone <input value={zone} maxLength={100} onChange={(event) => setZone(event.target.value)} /></label>}
-      <div className="wk-task-details-actions"><Button type="submit" disabled={busy || !title.trim()}>Save changes</Button>
+      <div className="wk-task-details-actions"><Button type="submit" loading={busy} disabled={!title.trim()}>Save changes</Button>
         <Button type="button" variant="quiet" onClick={() => setConfirmDelete(true)} disabled={busy}>Delete</Button></div>
       {error && <p className="wk-task-error" role="alert">{error}</p>}
     </form>
     {task.plannedAtUtc && !task.completedAt && <TaskReminderControl task={task} />}
-    {confirmDelete && <Dialog title="Delete task?" onClose={() => setConfirmDelete(false)} urgent>
+    {confirmDelete && <Dialog title="Delete task?" busy={busy} onClose={() => setConfirmDelete(false)} urgent>
       <p>“{task.title}” will be removed.</p><div className="wk-dialog-actions">
-        <Button variant="danger" disabled={busy} onClick={() => void remove()}>Delete task</Button>
-        <Button variant="secondary" disabled={busy} onClick={() => setConfirmDelete(false)}>Cancel</Button>
+        <Button variant="danger" loading={busy} onClick={() => void remove()}>Delete task</Button>
+        <Button variant="secondary" loading={busy} onClick={() => setConfirmDelete(false)}>Cancel</Button>
       </div>
     </Dialog>}
   </aside>;
+  return narrow ? <Dialog title="Task details" busy={busy} className="wk-task-details-dialog" onClose={onClose}>{content}</Dialog> : content;
 }
 
 function TaskReminderControl({ task }: { task: PersonalTaskDto }) {
@@ -151,14 +169,14 @@ function TaskReminderControl({ task }: { task: PersonalTaskDto }) {
     finally { setBusy(false); }
   }
   return <section className="wk-task-reminder-control" aria-label="Task reminder">
-    <h3><Bell size={16} /> Reminder</h3>
+    <h3><Bell size={16} aria-hidden="true" /> Reminder</h3>
     {loading ? <p role="status">Loading reminder…</p> : <><p>{reminder ? `Set for ${new Date(reminder.dueAtUtc).toLocaleString()}` : "Get notified before this task starts."}</p>
       <label>Remind me<select value={minutes} onChange={(event) => setMinutes(Number(event.target.value))}>
         <option value={0}>At task time</option><option value={5}>5 minutes before</option>
         <option value={15}>15 minutes before</option><option value={30}>30 minutes before</option>
         <option value={60}>1 hour before</option><option value={1440}>1 day before</option>
-      </select></label><div><Button size="compact" disabled={busy} onClick={() => void save()}>{reminder ? "Update reminder" : "Set reminder"}</Button>
-        {reminder && <Button size="compact" variant="quiet" disabled={busy} onClick={() => void remove()}>Remove</Button>}</div></>}
+      </select></label><div><Button size="compact" loading={busy} onClick={() => void save()}>{reminder ? "Update reminder" : "Set reminder"}</Button>
+        {reminder && <Button size="compact" variant="quiet" loading={busy} onClick={() => void remove()}>Remove</Button>}</div></>}
     {error && <p role="alert" className="wk-task-error">{error}</p>}
   </section>;
 }
@@ -177,11 +195,11 @@ function QuickTemplates({ navigate }: { navigate: (path: string) => void }) {
   return <aside className="wk-quick-template-panel" aria-label="Task templates">
     <div className="wk-quick-template-heading"><div><h2>Templates</h2><p>Reusable plans for recurring work.</p></div>
       <button type="button" onClick={() => navigate("/tasks/templates")}>Browse all</button></div>
-    {loading && <p role="status">Loading templates…</p>}
+    {loading && <LoadingSkeleton label="Loading templates…" />}
     {error && <div role="alert"><p>{error}</p><Button variant="secondary" size="compact" onClick={() => void load()}>Try again</Button></div>}
     {!loading && !error && (templates.length ? <ul>{templates.slice(0, 5).map((template) => <li key={template.id}>
-      <button type="button" onClick={() => navigate("/tasks/templates")}><span><Sparkles size={15} /></span>
-        <strong>{template.name}<small>{template.items.length} {template.items.length === 1 ? "task" : "tasks"}</small></strong><ChevronRight size={15} /></button>
+      <button type="button" onClick={() => navigate("/tasks/templates")}><span><Sparkles size={15} aria-hidden="true" /></span>
+        <strong>{template.name}<small>{template.items.length} {template.items.length === 1 ? "task" : "tasks"}</small></strong><ChevronRight size={15} aria-hidden="true" /></button>
     </li>)}</ul> : <div className="wk-quick-template-empty"><p>No templates yet.</p><Button size="compact" onClick={() => navigate("/tasks/templates")}>Create a template</Button></div>)}
   </aside>;
 }
@@ -351,14 +369,14 @@ export function TasksPage({ notify, openTaskId = null, onCloseLinked, initialVie
         <h1 id="wk-task-heading">{view === "week" ? `Week of ${new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric", timeZone: "UTC" }).format(new Date(`${visibleWeek}T12:00:00Z`))}` : view === "inbox" ? "Quick tasks" : activeList?.name ?? taskViews.find((item) => item.key === view)?.label}</h1>
         {view === "inbox" && <p>Capture now. Decide when it deserves your attention.</p>}
         {view === "today" && !activeList && <p>{new Intl.DateTimeFormat(undefined, { weekday: "long", month: "long", day: "numeric", timeZone: "UTC" }).format(new Date(`${today}T12:00:00Z`))} · {zone}</p>}</div>
-        <Button ref={planningButtonRef} variant="secondary" size="compact" aria-expanded={panelOpen} onClick={() => setPanelOpen((open) => !open)}><SlidersHorizontal size={15} /> Task views</Button>
+        <Button ref={planningButtonRef} variant="secondary" size="compact" aria-expanded={panelOpen} onClick={() => setPanelOpen((open) => !open)}><SlidersHorizontal size={15} aria-hidden="true" /> Task views</Button>
       </header>
       {planningError && <div className="wk-task-load-error" role="alert"><p>{planningError}</p><Button variant="secondary" onClick={() => void loadPlanning()}>Try again</Button></div>}
       {view === "inbox" && <div className="wk-quick-tabbar"><span>Inbox · {tasks.length}{hasMore ? "+" : ""}</span><button type="button" onClick={() => navigate("/tasks/templates")}>Templates</button></div>}
       <div className={view === "inbox" ? "wk-quick-layout" : `wk-task-body${view === "week" ? " wk-task-body--week" : ""}`}><div className={view === "inbox" ? "wk-quick-list-panel" : undefined}>
       {planningReady && view !== "completed" && view !== "week" && <TaskQuickAdd view={view} today={today} zone={zone} listId={activeListId} onCreated={(task) => { notify("Task added"); setSelected(task); void load(); }} />}
       {error && <div className="wk-task-load-error" role="alert"><p>{error}</p><Button variant="secondary" onClick={() => void load()}>Try again</Button></div>}
-      {(loading || !planningReady && !planningError) && <p role="status" className="wk-task-status">Loading tasks…</p>}
+      {(loading || !planningReady && !planningError) && <LoadingSkeleton layout={view === "week" ? "week" : "list"} label="Loading tasks…" />}
       {!loading && !error && view === "week" && <WeeklyPlanner start={visibleWeek} today={today} tasks={tasks}
         quickTasks={quickTasks} quickLoading={quickLoading} quickError={quickError} quickHasMore={quickHasMore}
         selectedId={selected?.id ?? null} zone={zone} onWeekChange={setVisibleWeek}
@@ -390,7 +408,7 @@ export function TasksPage({ notify, openTaskId = null, onCloseLinked, initialVie
     {templateAction && <TemplatesDialog key={`${templateAction.mode}:${templateAction.date ?? ""}`} action={templateAction}
       dayTasks={tasks.filter((task) => task.plannedDate === templateAction.date)} zone={zone}
       onClose={() => setTemplateAction(null)} onSaved={notify} onApplied={() => { notify("Template tasks added"); refresh(); }} />}
-    {actionTask && <Dialog title={actionConfirmDelete ? "Delete task?" : actionTask.title}
+    {actionTask && <Dialog busy={actionBusy} title={actionConfirmDelete ? "Delete task?" : actionTask.title}
       onClose={() => { if (!actionBusy) closeTaskActions(); }} urgent={actionConfirmDelete}>
       <p>{actionConfirmDelete ? `“${actionTask.title}” will be removed.` : "Choose an action for this task."}</p>
       {actionError && <p className="wk-task-error" role="alert">{actionError}</p>}
@@ -403,7 +421,7 @@ export function TasksPage({ notify, openTaskId = null, onCloseLinked, initialVie
         <Button variant="secondary" disabled={actionBusy} onClick={closeTaskActions}>Cancel</Button>
       </>}</div>
     </Dialog>}
-    {clearDayDate && <Dialog title="Clear day tasks?" urgent onClose={() => { if (!clearDayBusy) setClearDayDate(null); }}>
+    {clearDayDate && <Dialog busy={clearDayBusy} title="Clear day tasks?" urgent onClose={() => { if (!clearDayBusy) setClearDayDate(null); }}>
       <p>Delete all {tasks.filter((task) => task.plannedDate === clearDayDate).length} tasks on {dateLabel(clearDayDate)}, including completed tasks?</p>
       {clearDayError && <p className="wk-task-error" role="alert">{clearDayError}</p>}
       <div className="wk-dialog-actions">

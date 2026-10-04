@@ -1,3 +1,4 @@
+import { LoadingSkeleton } from "../../components/ui/LoadingSkeleton";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Boxes, Plus, Search, Sparkles } from "lucide-react";
 import { errorMessage, planningSettingsApi, taskTemplateApi, type TaskTemplateDto } from "../../api";
@@ -73,25 +74,25 @@ export function TemplatesPage({ notify, navigate }: { notify: (message: string) 
   }
   return <section className="wk-templates-page" aria-labelledby="wk-templates-title">
     <header className="wk-templates-header">
-      <div><span>Reusable task systems</span><h1 id="wk-templates-title">Templates</h1><p>Start with structure, then make it yours.</p></div>
-      <Button size="compact" onClick={() => setDialogTarget("new")}><Plus size={15} /> Create template</Button>
+      <div><span className="wk-templates-eyebrow">Reusable task systems</span><h1 id="wk-templates-title">Templates</h1><p>Start with structure, then make it yours.</p></div>
+      <Button aria-haspopup="dialog" onClick={() => setDialogTarget("new")}><Plus size={18} aria-hidden="true" /> Create template</Button>
     </header>
-    <div className="wk-templates-toolbar"><label><Search size={15} /><input value={search}
+    <div className="wk-templates-toolbar"><label><Search size={15} aria-hidden="true" /><input value={search}
       onChange={(event) => setSearch(event.target.value)} placeholder="Search templates" aria-label="Search templates" /></label></div>
     {error && <div className="wk-templates-error" role="alert"><p>{error}</p><Button variant="secondary" size="compact" onClick={() => void load()}>Try again</Button></div>}
-    {loading && <p className="wk-templates-status" role="status">Loading templates…</p>}
+    {loading && <LoadingSkeleton layout="cards" label="Loading templates…" />}
     {!loading && !error && <div className="wk-templates-layout">
       <div className="wk-templates-library">
         <div className="wk-templates-section-heading"><h2>Your templates</h2><p>{totalCount} {search ? "matching" : "saved"} {totalCount === 1 ? "template" : "templates"}</p></div>
         {templates.length ? <div className="wk-templates-grid">{templates.map((template) =>
           <button key={template.id} className={selectedId === template.id ? "wk-template-card--selected" : ""}
             aria-pressed={selectedId === template.id} onClick={() => setSelectedId(template.id)}>
-            <span className="wk-template-card-icon"><Sparkles size={15} /></span>
+            <span className="wk-template-card-icon"><Sparkles size={15} aria-hidden="true" /></span>
             <strong>{template.name}</strong>
             <small>{template.items.slice(0, 2).map((item) => item.title).join(" · ") || "Reusable tasks"}</small>
             <span className="wk-template-card-footer"><em>Personal</em><small>{template.items.length} {template.items.length === 1 ? "task" : "tasks"}</small></span>
           </button>)}</div> : <div className="wk-templates-empty">
-            <Boxes size={24} /><h3>{search ? "No matching templates" : "No templates yet"}</h3>
+            <Boxes size={24} aria-hidden="true" /><h3>{search ? "No matching templates" : "No templates yet"}</h3>
             <p>{search ? "Try another name." : "Create one to reuse a set of tasks."}</p>
             {!search && <Button size="compact" onClick={() => setDialogTarget("new")}>Create template</Button>}
           </div>}
@@ -99,7 +100,7 @@ export function TemplatesPage({ notify, navigate }: { notify: (message: string) 
       </div>
       <aside className="wk-template-preview" aria-label="Template preview">
         {selected ? <>
-          <span className="wk-template-preview-icon"><Sparkles size={18} /></span>
+          <span className="wk-template-preview-icon"><Sparkles size={18} aria-hidden="true" /></span>
           <h2>{selected.name}</h2>
           <p>{selected.items.length} {selected.items.length === 1 ? "task" : "tasks"} ready to add to your plan.</p>
           <ol>{selected.items.map((item, index) => <li key={index}><span>{index + 1}</span><div><strong>{item.title}</strong>
@@ -108,7 +109,7 @@ export function TemplatesPage({ notify, navigate }: { notify: (message: string) 
           <label>Apply to date<input type="date" value={date} onChange={(event) => setDate(event.target.value)} /></label>
           {applyError && <p className="wk-templates-error" role="alert">{applyError}</p>}
           <div className="wk-template-preview-actions"><Button variant="secondary" size="compact" onClick={() => setDialogTarget(selected.id)}>Edit</Button>
-            <Button size="compact" disabled={applying || !date} onClick={() => void applyTemplate()}><Plus size={14} /> Use template</Button></div>
+            <Button size="compact" disabled={applying || !date} onClick={() => void applyTemplate()}><Plus size={14} aria-hidden="true" /> Use template</Button></div>
         </> : <p>Select a template to preview its tasks.</p>}
       </aside>
     </div>}

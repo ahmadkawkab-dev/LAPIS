@@ -89,6 +89,38 @@ public sealed class NotificationDeliveryTests(PostgresFixture postgres)
     }
 
     [Fact]
+    public async Task Chat_aggregation_keeps_sequence_range_and_latest_message_when_work_arrives_out_of_order()
+    {
+        var ct = TestContext.Current.CancellationToken; var seed = await Seed(postgres, ct);
+        await using var factory = new Factory(postgres, seed.Clock); using var owner = Client(factory, seed.Owner);
+        var first = await Message(owner, seed, new(Guid.NewGuid(), "first"), ct);
+        var second = await Message(owner, seed, new(Guid.NewGuid(), "second"), ct);
+        Assert.Equal("1", first.Sequence); Assert.Equal("2", second.Sequence);
+
+        // Both messages share a timestamp and aggregation bucket. Deliver sequence 2 first.
+        await using (var db = postgres.CreateContext())
+            await db.NotificationWork.Where(work => work.ResourceId == first.Id && work.Type == NotificationType.ChatActivity)
+                .ExecuteUpdateAsync(setters => setters.SetProperty(work => work.NextAttemptAt,
+                    seed.Clock.GetUtcNow().AddSeconds(30)), ct);
+        seed.Clock.Advance(TimeSpan.FromSeconds(3)); await DispatchNotifications(factory, ct);
+        await using (var db = postgres.CreateContext())
+        {
+            var later = await db.Notifications.SingleAsync(item => item.UserId == seed.Guest.Id && item.Type == NotificationType.ChatActivity, ct);
+            Assert.Equal(2, later.FirstChatSequence); Assert.Equal(2, later.LastChatSequence);
+            Assert.Equal(second.Id, later.ResourceId);
+        }
+
+        seed.Clock.Advance(TimeSpan.FromSeconds(30)); await DispatchNotifications(factory, ct);
+        await using (var db = postgres.CreateContext())
+        {
+            var grouped = await db.Notifications.SingleAsync(item => item.UserId == seed.Guest.Id && item.Type == NotificationType.ChatActivity, ct);
+            Assert.Equal(1, grouped.FirstChatSequence); Assert.Equal(2, grouped.LastChatSequence);
+            Assert.Equal(second.Id, grouped.ResourceId);
+            Assert.Equal(2, grouped.ActivityCount); Assert.Equal(2, grouped.Revision);
+        }
+    }
+
+    [Fact]
     public async Task Imported_calendar_reminders_survive_chat_expiry_and_rescheduling_invalidates_queued_alerts()
     {
         var ct = TestContext.Current.CancellationToken; var seed = await Seed(postgres, ct);

@@ -54,11 +54,15 @@ Common actions stay visible or immediately reachable. Rare actions may use inspe
 
 The signed-in shell's primary destinations are Boards, Tasks, and Calendar. Account is reached through the persistent identity control: the desktop sidebar account row or mobile header avatar. Upcoming Library, Pictures, and Journal routes remain valid for direct links and development previews but do not compete with working destinations in primary navigation. A destination only joins primary navigation when it supports a meaningful workflow.
 
+The October 4 implementation and browser evidence are recorded in [the refactor audit](UI_UX_REFACTOR_AUDIT.md).
+
 ## Semantic tokens
 
 Tokens live in `frontend/src/styles/tokens.css`. Components use semantic tokens instead of hard-coded product colors or arbitrary stacking values.
 
 The remaining legacy board geometry rules in `frontend/src/styles.css` also reference these tokens. Palette values belong in `tokens.css`; note pigments, contrast-checked note ink, and collaborator identity are the deliberate content/identity exceptions. As board geometry migrates, remove superseded legacy rules instead of introducing a second palette.
+
+Root tokens own both light and dark palettes, including native-dialog portals outside the shell. Keep selected foreground/surfaces, control borders and status pairs together. Do not add a competing shell palette. The semantic contrast regression test checks normal text at 4.5:1 and control/focus boundaries at 3:1 against their intended surfaces.
 
 ### Surfaces and hierarchy
 
@@ -151,7 +155,8 @@ Working scale:
 - body and editors: 16px
 - controls and navigation: 14–16px
 - metadata and secondary labels: 12–14px
-- prominent headings: responsive `clamp()` scale
+- app page headings: 24px; section headings: 18px; card titles: 16px
+- public/editorial headings: responsive `clamp()` scale
 
 Use regular, medium, and semibold weights. Avoid 10px and 11px product text. Body/editor line height is generally 1.4–1.6. Headings may use tighter leading. Do not justify body text. Long-form content should usually remain within about 65–75 characters per line.
 
@@ -161,9 +166,9 @@ Use the 4px spacing foundation: 4, 8, 12, 16, 20, 24, 32, 40, 48, and 64px.
 
 Approximate radius roles:
 
-- controls: 8px
+- controls: 6px
 - cards and notes: 10–12px
-- large panels: 14–16px
+- panels: 10px; retain existing 12px note corners
 
 Prefer borders, backgrounds, and spacing before shadows. Shadows are shallow and indicate elevation, not decoration. Avoid bubbly radii and large glow effects.
 
@@ -178,19 +183,19 @@ Use the shared `Button` and `IconButton` primitives.
 - Quiet: tertiary or low-emphasis action
 - Danger: destructive action, separated from routine editing
 
-All primary interactive hit regions target approximately 44×44 CSS pixels where practical. An icon may remain 18–20px inside that area.
+Default and touch controls target 44px. Compact desktop controls use 36px; densely repeated calendar cells may use 24–32px with spacing. Icons remain 16–20px inside these targets. The shared `loading` state disables duplicate submission, hides the original content visually, and reserves the maximum of the original and optional `loadingLabel` width from the first render. Short controls use a spinner with a screen-reader label; do not render a long default loading label into a short Add button.
 
 ### Inputs
 
-Inputs have persistent labels, tokenized borders and surfaces, 16px editor text where practical, visible invalid state, and visible keyboard focus. Placeholder text is supplemental, not a label.
+Inputs have persistent labels, tokenized borders and surfaces, 14px compact desktop text or 16px editor text, visible invalid state, and visible keyboard focus. Touch/narrow input text is at least 16px, including dense feature forms, to avoid browser zoom on focus. Placeholder text is supplemental, not a label. Required shared fields include a visible hint; associated errors are announced. Authentication supports paste/autofill and a password disclosure control. Read-only information stays selectable.
 
 ### Dialogs, panels, and sheets
 
 An owned board's sidebar entry opens Board actions on right-click or Shift+F10. Each owned board card also has a visible Board actions button so touch users can reach the same choices. Rename uses the shared field and dialog controls. Delete requires a separate confirmation that names the board and explains that its notes, tasks, and connections are removed. Guests have no owner actions. After deletion, the board disappears from every member's list and active viewers leave it.
 
-Notices enter and exit with a short fade and vertical movement, then leave the DOM after three seconds total. Dismiss starts the same exit animation. Reduced-motion preferences remove the movement while preserving the lifetime and live status announcement.
+Routine notices remain for six seconds and restart their reading interval after hover/focus. Warnings persist until dismissed. Dismiss uses the brief exit animation; reduced motion removes it. Avoid stacking multiple notices in the same screen location.
 
-Modal dialogs use the shared native-dialog primitive for focus containment, Escape behavior, inert background, accessible naming, and focus restoration.
+Modal dialogs use the shared native-dialog primitive for focus containment, Escape behavior, inert background, accessible naming, and focus restoration. Initially focus explicit autofocus or the heading; reverse Tab from a heading wraps to the last control. Provide a visible close action and pass `busy` while submitting. On narrow screens Task details is a modal; desktop remains a dock. Route transitions focus the main region and reset page scroll without changing canvas coordinates or its stored camera.
 
 Account dialog sections use constrained grid tracks and wrapping controls so email, sign-in methods, and session actions remain within the dialog at large text sizes. The dialog itself scrolls vertically when its content exceeds the viewport.
 
@@ -267,6 +272,8 @@ Checklist rows keep their own height when a deletion confirmation expands. The c
 The dock hierarchy is intentionally progressive: object context and draft recovery, Appearance, Connections, Details, then a separated Danger zone. Title, note body, task-list title, checklist text, and completion stay inline on the board object; the dock does not duplicate routine text editing.
 
 Opening Properties remembers its originating control. Closing with the close action or Escape restores focus to that control, then falls back to the selected note or board when the origin no longer exists. Switching directly to another board panel closes Properties without stealing focus back to the old origin. Escape exits inline editing or closes the current transient surface without deleting dirty text.
+
+Properties offers four pointer direction controls through the bounded visual mutation queue in addition to note-keyboard nudges and numeric resize fields. Connections can be created and reconnected with card/side selectors using the same concurrency and conflict behavior as dragging.
 
 ## Keyboard and non-drag access
 
@@ -382,9 +389,11 @@ Avoid rerendering the entire board for one presence, editing, geometry, or curso
 
 ## Content states
 
-Loading placeholders preserve layout and approximate final structure. Empty states explain what the area is, what the user can do, and provide one clear action where appropriate. Errors answer what happened, what state the user's work is in, and what they can do next.
+Loading placeholders preserve layout immediately and reveal static content-shaped placeholders after 180ms. Use list, cards, week, calendar, dashboard, chat or form shapes; keep existing content during background refresh. Route features load through native React lazy/Suspense while NotificationRuntime remains mounted. Loading and error states must not claim that a collection is empty.
 
-An editable empty board offers a direct Add note action in the canvas. Read-only empty boards explain that they are waiting for content. Unavailable chat copy stays in user language and points to notes as the current collaboration path.
+Loading placeholders approximate final structure. Empty states explain what the area is, what the user can do, and provide one clear action where appropriate. Errors answer what happened, what state the user's work is in, and what they can do next.
+
+An editable empty board offers a direct Add note action in the canvas. Read-only empty boards explain that they are waiting for content. Chat is implemented: preserve composer drafts, history anchors, moderation, attachment scanning and scheduled tasks. Library, Journal and Pictures remain production coming-soon routes with separate sample previews.
 
 ## Anti-patterns
 

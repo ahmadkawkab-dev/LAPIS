@@ -384,6 +384,7 @@ export const notificationApi = {
     `${notifications}/upcoming/page?limit=20${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ""}`),
   read: (id: string, revision?: number) => request<void>(`${notifications}/${encodeURIComponent(id)}/read${revision === undefined ? "" : `?revision=${revision}`}`, "POST"),
   readAll: () => request<void>(`${notifications}/read-all`, "POST"),
+  dismissRead: () => request<{ dismissedCount: number }>(`${notifications}/dismiss-read`, "POST"),
   dismiss: (id: string, revision?: number) => request<void>(`${notifications}/${encodeURIComponent(id)}/dismiss${revision === undefined ? "" : `?revision=${revision}`}`, "POST"),
   snooze: (id: string, minutes: number) => request<void>(`${notifications}/${encodeURIComponent(id)}/snooze`, "POST", { minutes }),
 };

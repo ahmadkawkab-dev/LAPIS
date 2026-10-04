@@ -26,21 +26,21 @@ export function MobileNav({ onBoards, navigate }: { onBoards: () => void; naviga
   return <>
     <nav className="wk-mobile-nav" aria-label="Primary navigation">
       <button className={`wk-mobile-nav-item${path === "/home" ? " wk-mobile-nav-item--active" : ""}`}
-        aria-current={path === "/home" ? "page" : undefined} onClick={() => go("/home")}><Home size={19} /><span>Home</span></button>
+        aria-current={path === "/home" ? "page" : undefined} onClick={() => go("/home")}><Home size={19} aria-hidden="true" /><span>Home</span></button>
       <button className={`wk-mobile-nav-item${path === "/tasks" ? " wk-mobile-nav-item--active" : ""}`}
-        aria-current={path === "/tasks" ? "page" : undefined} onClick={() => go("/tasks")}><CheckSquare size={19} /><span>Week</span></button>
+        aria-current={path === "/tasks" ? "page" : undefined} onClick={() => go("/tasks")}><CheckSquare size={19} aria-hidden="true" /><span>Week</span></button>
       <button className={`wk-mobile-nav-item${path === "/calendar" ? " wk-mobile-nav-item--active" : ""}`}
-        aria-current={path === "/calendar" ? "page" : undefined} onClick={() => go("/calendar")}><CalendarDays size={19} /><span>Calendar</span></button>
+        aria-current={path === "/calendar" ? "page" : undefined} onClick={() => go("/calendar")}><CalendarDays size={19} aria-hidden="true" /><span>Calendar</span></button>
       <button className={`wk-mobile-nav-item${moreActive ? " wk-mobile-nav-item--active" : ""}`}
-        aria-expanded={menuOpen} aria-haspopup="dialog" onClick={() => setMenuOpen(true)}><Menu size={19} /><span>More{unread > 0 ? ` · ${unread > 99 ? "99+" : unread}` : ""}</span></button>
+        aria-expanded={menuOpen} aria-haspopup="dialog" onClick={() => setMenuOpen(true)}><Menu size={19} aria-hidden="true" /><span>More{unread > 0 ? ` · ${unread > 99 ? "99+" : unread}` : ""}</span></button>
     </nav>
     {menuOpen && <Dialog title="More" onClose={() => setMenuOpen(false)} className="wk-mobile-more">
       <div className="wk-mobile-more-links">
-        <button onClick={() => { setMenuOpen(false); onBoards(); }}><LayoutDashboard size={18} /> Boards</button>
-        <button onClick={() => go("/tasks/quick")}><Inbox size={18} /> Quick tasks</button>
-        <button onClick={() => go("/tasks/templates")}><Boxes size={18} /> Templates</button>
-        <button onClick={() => go("/notifications")}><Bell size={18} /> Notifications{unread > 0 ? ` · ${unread}` : ""}</button>
-        <button onClick={() => go("/account/profile")}><Menu size={18} /> Account</button>
+        <button onClick={() => { setMenuOpen(false); onBoards(); }}><LayoutDashboard size={18} aria-hidden="true" /> Boards</button>
+        <button onClick={() => go("/tasks/quick")}><Inbox size={18} aria-hidden="true" /> Quick tasks</button>
+        <button onClick={() => go("/tasks/templates")}><Boxes size={18} aria-hidden="true" /> Templates</button>
+        <button onClick={() => go("/notifications")}><Bell size={18} aria-hidden="true" /> Notifications{unread > 0 ? ` · ${unread}` : ""}</button>
+        <button onClick={() => go("/account/profile")}><Menu size={18} aria-hidden="true" /> Account</button>
       </div>
     </Dialog>}
   </>;

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
 import {
   currentSession,
   exchangeGoogleCode,
@@ -20,23 +20,24 @@ import {
 } from "../api";
 import { AuthScreen } from "../features/auth/AuthScreen";
 import { PrivacyPolicyPage, PublicHome, TermsOfServicePage } from "../features/public/PublicPages";
-import { AccountPanel } from "../features/account/AccountPanel";
+const AccountPanel = lazy(() => import("../features/account/AccountPanel").then((module) => ({ default: module.AccountPanel })));
 import { accountSectionForPath } from "../features/account/accountRoute";
 import { Wordmark } from "../components/brand/Wordmark";
 import { AppShell } from "../components/navigation/AppShell";
 import { Button } from "../components/ui/Button";
+import { LoadingSkeleton } from "../components/ui/LoadingSkeleton";
 import { Notice } from "../components/ui/Notice";
 import { BoardLanding } from "../features/boards/BoardLanding";
 import { DashboardPage } from "../features/dashboard/DashboardPage";
-import { TasksPage } from "../features/tasks/TasksPage";
-import { TemplatesPage } from "../features/tasks/TemplatesPage";
-import { CalendarPage } from "../features/calendar/CalendarPage";
+const TasksPage = lazy(() => import("../features/tasks/TasksPage").then((module) => ({ default: module.TasksPage })));
+const TemplatesPage = lazy(() => import("../features/tasks/TemplatesPage").then((module) => ({ default: module.TemplatesPage })));
+const CalendarPage = lazy(() => import("../features/calendar/CalendarPage").then((module) => ({ default: module.CalendarPage })));
 import { rememberNotificationReturnPath, takeNotificationReturnPath } from "../features/notifications/notificationRoutes";
 import { NotificationRuntime } from "../features/notifications/NotificationRuntime";
 import { clearBrowserNotificationSession } from "../features/notifications/browserPush";
-import { NotificationsPage } from "../features/notifications/NotificationsPage";
+const NotificationsPage = lazy(() => import("../features/notifications/NotificationsPage").then((module) => ({ default: module.NotificationsPage })));
 import { SoonPage } from "../features/future/PreviewUI";
-import { Workspace } from "../features/boards/BoardWorkspace";
+const Workspace = lazy(() => import("../features/boards/BoardWorkspace").then((module) => ({ default: module.Workspace })));
 import { realtimeConnection } from "../realtime/connection";
 import {
   realtimeEvents,
@@ -304,7 +305,11 @@ export default function App() {
       signOutEverywhere={() => void signOut(true)}
       notify={notify}
     >
-      <NotificationRuntime key={session.user.id} userId={session.user.id} navigate={navigate} />
+      <div className="wk-feedback-stack">
+        <NotificationRuntime key={session.user.id} userId={session.user.id} navigate={navigate} />
+        {notice && <Notice message={notice.message} tone={notice.tone} onDismiss={() => setNotice(null)} />}
+      </div>
+      <Suspense fallback={<LoadingSkeleton label="Opening page" layout={path === "/calendar" ? "calendar" : path === "/tasks" ? "week" : "list"} />}>
       {path === "/home" ? <DashboardPage user={session.user} boards={boards} boardsLoading={loading} boardsError={failure}
         retryBoards={() => void loadBoards().catch(() => undefined)} navigate={navigate} notify={notify} />
       : path === "/library" ? <SoonPage area="Library" /> : path === "/library/pictures" ? <SoonPage area="Pictures" /> : path === "/journal" ? <SoonPage area="Journal" /> : path === "/tasks/templates" ? <TemplatesPage notify={notify} navigate={navigate} />
@@ -345,9 +350,7 @@ export default function App() {
           create={createBoard}
         />
       )}
-      {notice && (
-        <Notice message={notice.message} tone={notice.tone} onDismiss={() => setNotice(null)} />
-      )}
+      </Suspense>
     </AppShell>
   );
 }
