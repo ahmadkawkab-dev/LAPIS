@@ -1,6 +1,6 @@
-import { useRef, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { MoreHorizontal, X } from "lucide-react";
-import { errorMessage, type BoardDetailDto, type MemberDto, type NoteDto } from "../../../api";
+import { boardApi, errorMessage, type BoardDetailDto, type MemberDto, type NoteDto } from "../../../api";
 import { Avatar, identityLabel } from "../../../components/ui/Avatar";
 import { Button, IconButton } from "../../../components/ui/Button";
 import { Dialog } from "../../../components/ui/Dialog";
@@ -118,6 +118,13 @@ export function SharePanel({
   const heading = useRef<HTMLHeadingElement>(null);
   const removalOrigin = useRef<HTMLElement | null>(null);
   const online = new Set(presenceAvailable ? presence?.viewers.map((viewer) => viewer.userId) : []);
+  const [maxGuests, setMaxGuests] = useState<number | null>(null);
+  const guestCount = members.filter(member => member.role === 0).length;
+  useEffect(() => {
+    let current = true;
+    void boardApi.guestLimit(board.id).then(limit => { if (current) setMaxGuests(limit.maxGuests); }).catch(() => undefined);
+    return () => { current = false; };
+  }, [board.id, guestCount]);
   function closeMenu(restoreFocus = true) {
     const trigger = menu?.anchor.trigger;
     setMenu(null);
@@ -162,6 +169,8 @@ export function SharePanel({
           <X size={18} aria-hidden="true" />
         </IconButton>
       </div>
+      {maxGuests !== null && <p className="wk-muted">{guestCount}/{maxGuests} guests · owner separate
+        {guestCount >= maxGuests && " · Existing guest permissions can still be updated."}</p>}
       <div className="member-list">
         {members.map((member) => {
           const name = identityLabel(member);
@@ -213,7 +222,7 @@ export function SharePanel({
           }} />
       )}
       {removeTarget && (
-        <Dialog title={`Remove ${identityLabel(removeTarget)}?`} urgent
+        <Dialog busy={busy} title={`Remove ${identityLabel(removeTarget)}?`} urgent
           onClose={() => {
             if (busy) return;
             setRemoveTarget(null);
@@ -222,12 +231,12 @@ export function SharePanel({
           <p>They will immediately lose access to this board.</p>
           {error && <p className="wk-alert" role="alert">{error}</p>}
           <div className="wk-dialog-actions">
-            <Button variant="quiet" disabled={busy} onClick={() => {
+            <Button variant="quiet" loading={busy} onClick={() => {
               setRemoveTarget(null);
               queueMicrotask(() => removalOrigin.current?.focus());
             }}>Cancel</Button>
-            <Button variant="danger" disabled={busy} onClick={() => void remove()}>
-              {busy ? "Removing…" : "Remove collaborator"}
+            <Button variant="danger" loading={busy} onClick={() => void remove()}>
+              Remove collaborator
             </Button>
           </div>
         </Dialog>
@@ -251,7 +260,7 @@ export function SharePanel({
             />{" "}
             Allow editing
           </label>
-          <Button type="submit" disabled={busy || !email.trim()}>
+          <Button type="submit" loading={busy} disabled={!email.trim()}>
             Add or update guest
           </Button>
         </form>

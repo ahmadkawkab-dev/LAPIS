@@ -1,7 +1,9 @@
+import { lazy, Suspense } from "react";
 import ReactDOM from "react-dom/client";
 import App from "./app/App";
 import { AppErrorBoundary } from "./components/ui/AppErrorBoundary";
-import { FuturePreviewEntry } from "./features/future/FuturePreviewApp";
+import { LoadingSkeleton } from "./components/ui/LoadingSkeleton";
+const FuturePreviewEntry = lazy(() => import("./features/future/FuturePreviewApp").then((module) => ({ default: module.FuturePreviewEntry })));
 import { futurePreviewEnabled, isFuturePreviewPath } from "./features/future/flags";
 import "./styles.css";
 import "./styles/fonts.css";
@@ -15,5 +17,5 @@ import "./styles/presence.css";
 import "./styles/future.css";
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
-  <AppErrorBoundary>{futurePreviewEnabled && isFuturePreviewPath(window.location.pathname) ? <FuturePreviewEntry /> : <App />}</AppErrorBoundary>,
+  <AppErrorBoundary>{futurePreviewEnabled && isFuturePreviewPath(window.location.pathname) ? <Suspense fallback={<LoadingSkeleton label="Opening preview" layout="cards" />}><FuturePreviewEntry /></Suspense> : <App />}</AppErrorBoundary>,
 );

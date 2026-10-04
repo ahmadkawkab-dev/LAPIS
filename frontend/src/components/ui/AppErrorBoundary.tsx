@@ -18,7 +18,7 @@ export class AppErrorBoundary extends Component<{ children: ReactNode }, Boundar
       return (
         <main className="wk-app-error" role="alert">
           <h1>This screen could not be opened</h1>
-          <p>{this.state.error.message || "An unexpected rendering error occurred."}</p>
+          <p>Something went wrong while opening this screen. Reload Wukna to try again.</p>
           <button type="button" onClick={() => window.location.reload()}>Reload Wukna</button>
         </main>
       );

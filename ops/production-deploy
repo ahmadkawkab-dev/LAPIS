@@ -8,6 +8,8 @@ PATH=/usr/sbin:/usr/bin:/sbin:/bin
 umask 077
 
 compose_file=/home/ubuntu/wukna-deploy/compose.production.yaml
+attachments_compose_file=/home/ubuntu/wukna-deploy/compose.attachments.production.yaml
+attachments_marker=/etc/wukna/attachments.enabled
 env_file=/etc/wukna/production.env
 docker=/usr/bin/docker
 
@@ -49,6 +51,24 @@ if [[ "$env_owner" != 0 || ( "$env_mode" != 600 && "$env_mode" != 400 ) ]]; then
   exit 1
 fi
 
+compose_files=(-f "$compose_file")
+attachments_enabled=false
+if [[ -e "$attachments_marker" || -L "$attachments_marker" ]]; then
+  if [[ ! -f "$attachments_marker" || -L "$attachments_marker" ||
+        $(stat -c '%u:%a' "$attachments_marker") != 0:600 ||
+        $(<"$attachments_marker") != enabled ]]; then
+    echo "The attachment marker must be a root-owned mode 0600 file containing 'enabled'" >&2
+    exit 1
+  fi
+  if [[ ! -f "$attachments_compose_file" || -L "$attachments_compose_file" ||
+        $(stat -c '%u:%a' "$attachments_compose_file") != 0:644 ]]; then
+    echo "The attachment Compose override must be a root-owned mode 0644 regular file" >&2
+    exit 1
+  fi
+  compose_files+=(-f "$attachments_compose_file")
+  attachments_enabled=true
+fi
+
 exec 9>/run/wukna-deploy.lock
 if ! flock -n 9; then
   echo "Another Wukna deployment is already running" >&2
@@ -60,10 +80,11 @@ compose() {
     "$docker" compose \
     --project-directory /home/ubuntu/wukna-deploy \
     --env-file "$env_file" \
-    -f "$compose_file" "$@"
+    "${compose_files[@]}" "$@"
 }
 
 compose config --quiet
+echo "Attachment override: $attachments_enabled"
 
 db_id=$(compose ps --all -q db)
 if [[ -z "$db_id" || $("$docker" inspect -f '{{.State.Health.Status}}' "$db_id") != healthy ]]; then
@@ -93,8 +114,14 @@ if [[ "$mode" == check ]]; then
   exit 0
 fi
 
-echo "Pulling API and frontend images for commit $sha"
-compose pull api frontend
+if [[ "$attachments_enabled" == true ]]; then
+  echo "Pulling scanner, API, and frontend images for commit $sha"
+  compose pull clamd api frontend
+  compose up --detach --no-deps --pull never --wait --wait-timeout 900 clamd
+else
+  echo "Pulling API and frontend images for commit $sha"
+  compose pull api frontend
+fi
 compose up --detach --no-deps --pull never --wait --wait-timeout 120 api frontend
 
 for service in api frontend; do

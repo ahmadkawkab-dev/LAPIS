@@ -1,0 +1,43 @@
+# Opt-in OCI Compute override. Use only with a dedicated private bucket and
+# instance-principal policy restricted to that bucket/prefix. No host ports for clamd.
+# docker compose --env-file /etc/wukna/production.env -f compose.production.yaml -f compose.attachments.production.yaml up -d
+services:
+  api:
+    environment:
+      Chat__Attachments__Enabled: "true"
+      Chat__Attachments__Provider: Oci
+      Chat__Attachments__Oci__Region: ${OCI_CHAT_REGION:?Set OCI_CHAT_REGION}
+      Chat__Attachments__Oci__Namespace: ${OCI_CHAT_NAMESPACE:?Set OCI_CHAT_NAMESPACE}
+      Chat__Attachments__Oci__Bucket: ${OCI_CHAT_BUCKET:?Set OCI_CHAT_BUCKET}
+      Chat__Attachments__Oci__Prefix: ${OCI_CHAT_PREFIX:-wukna-chat}
+      Chat__Attachments__Oci__Authentication: InstancePrincipals
+      Chat__Attachments__ClamHost: clamd
+    depends_on:
+      clamd:
+        condition: service_healthy
+    networks:
+      - data
+      - edge
+      - scanner_private
+  clamd:
+    image: clamav/clamav:1.5.4-debian13-slim@sha256:459a48c390c4e4e7278f730290a244e462fd70419261de171dee3c15fbcb1361
+    platform: linux/arm64
+    restart: unless-stopped
+    mem_limit: 4g
+    volumes:
+      - clamav_signatures_prod:/var/lib/clamav
+    networks:
+      - scanner_private
+      - scanner_egress
+    healthcheck:
+      test: ["CMD", "clamdscan", "--ping=1"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 120s
+networks:
+  scanner_private:
+    internal: true
+  scanner_egress:
+volumes:
+  clamav_signatures_prod:

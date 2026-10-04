@@ -42,7 +42,7 @@ export function BoardActionsDialog({ board, onClose, onRenameBoard, onDeleteBoar
     }
   }
   return (
-    <Dialog title={stage === "menu" ? "Board actions" : stage === "rename" ? "Rename board" : "Delete board"}
+    <Dialog busy={busy} title={stage === "menu" ? "Board actions" : stage === "rename" ? "Rename board" : "Delete board"}
       urgent={stage === "delete"} onClose={() => { if (!busy) onClose(); }}>
       {stage === "menu" && (
         <div className="wk-rename-board">
@@ -60,8 +60,8 @@ export function BoardActionsDialog({ board, onClose, onRenameBoard, onDeleteBoar
             onChange={(event) => setTitle(event.target.value)} />
           {error && <p className="wk-alert" role="alert">{error}</p>}
           <div className="wk-dialog-actions">
-            <Button type="submit" disabled={busy || !title.trim() || title.trim() === board.title}>
-              {busy ? "Saving…" : "Save name"}
+            <Button type="submit" loading={busy} disabled={!title.trim() || title.trim() === board.title}>
+              Save name
             </Button>
             <Button variant="quiet" onClick={onClose} disabled={busy}>Cancel</Button>
           </div>
@@ -72,8 +72,8 @@ export function BoardActionsDialog({ board, onClose, onRenameBoard, onDeleteBoar
           <p>Delete <strong>{board.title}</strong> and all its notes, tasks, and connections? This cannot be undone.</p>
           {error && <p className="wk-alert" role="alert">{error}</p>}
           <div className="wk-dialog-actions">
-            <Button variant="danger" disabled={busy} onClick={() => void deleteBoard()}>
-              {busy ? "Deleting…" : "Delete board"}
+            <Button variant="danger" loading={busy} onClick={() => void deleteBoard()}>
+              Delete board
             </Button>
             <Button variant="quiet" onClick={onClose} disabled={busy}>Cancel</Button>
           </div>

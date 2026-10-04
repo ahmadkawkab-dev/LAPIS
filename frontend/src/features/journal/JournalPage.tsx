@@ -28,7 +28,7 @@ function Calendar({ onOpen }: { onOpen: (index: number) => void }) {
   const selectedEntryIndex = active ? entries.findIndex((entry) => entry.day === selectedDay) : -1;
   const changeMonth = (delta: number) => { setOffset((value) => value + delta); setSelectedDay(1); };
   return <div className="wk-calendar-layout">
-    <section className="wk-calendar"><div className="wk-calendar-head"><h2>{monthLabel}</h2><div><IconButton label="Previous month" onClick={() => changeMonth(-1)}><ChevronLeft size={18} /></IconButton><IconButton label="Next month" onClick={() => changeMonth(1)}><ChevronRight size={18} /></IconButton></div></div>
+    <section className="wk-calendar"><div className="wk-calendar-head"><h2>{monthLabel}</h2><div><IconButton label="Previous month" onClick={() => changeMonth(-1)}><ChevronLeft size={18} aria-hidden="true" /></IconButton><IconButton label="Next month" onClick={() => changeMonth(1)}><ChevronRight size={18} aria-hidden="true" /></IconButton></div></div>
       <div className="wk-calendar-grid" role="group" aria-label={monthLabel}>
         {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((day) => <span className="wk-calendar-weekday" key={day}>{day}</span>)}
         {Array.from({ length: pad }, (_, index) => <span key={`pad-${index}`} />)}
@@ -43,7 +43,7 @@ function Calendar({ onOpen }: { onOpen: (index: number) => void }) {
         })}
       </div>
     </section>
-    <aside className="wk-calendar-context"><CalendarDays size={23} /><h3>{monthLabel} {selectedDay}</h3>
+    <aside className="wk-calendar-context"><CalendarDays size={23} aria-hidden="true" /><h3>{monthLabel} {selectedDay}</h3>
       {selectedEntryIndex >= 0 ? <button className="wk-calendar-entry" onClick={() => onOpen(selectedEntryIndex)}><strong>{entries[selectedEntryIndex].title || "Untitled entry"}</strong><span>{entries[selectedEntryIndex].preview}</span><ChevronRight size={18} aria-hidden="true" /></button> : <p>No sample entry for this day. Dates with entries have a dot.</p>}
     </aside>
   </div>;
@@ -66,7 +66,7 @@ export function JournalPage() {
   return <PreviewPage title="Journal" description="A quieter place for your days, thoughts and memories.">
     <PreviewTabs tabs={views} value={view} onChange={setView} label="Journal views" panelId="journal-preview-panel" />
     <div id="journal-preview-panel" role="tabpanel" aria-labelledby={`journal-preview-panel-${view.toLowerCase()}`}>
-    {view === "Today" && <div className="wk-journal-today"><div className="wk-journal-date"><span>Wednesday</span><h2>September 23</h2><p><LockKeyhole size={15} /> Planned as a private space</p></div><div className="wk-writing-shell"><span className="wk-future-eyebrow">Today’s page · visual preview</span><h3>How was today?</h3><p>Start writing when Journal becomes available. This preview shows the reading space, rhythm and optional entry details.</p><div className="wk-writing-lines" aria-hidden="true"><span /><span /><span /><span /></div><span className="wk-writing-footnote">Date and writing will take the lead. Title, mood and photos will be optional.</span></div>{prompt && <div className="wk-journal-prompt"><div><small>A thought to begin with</small><p>What do you want to remember from today?</p></div><IconButton label="Dismiss sample prompt" onClick={() => setPrompt(false)}><X size={17} /></IconButton></div>}<section className="wk-future-section"><div className="wk-section-heading"><h2>Recent entries</h2><button onClick={() => setView("Entries")}>All entries <ChevronRight size={16} /></button></div><EntryList onOpen={setEntryIndex} /></section></div>}
+    {view === "Today" && <div className="wk-journal-today"><div className="wk-journal-date"><span>Wednesday</span><h2>September 23</h2><p><LockKeyhole size={15} aria-hidden="true" /> Planned as a private space</p></div><div className="wk-writing-shell"><span className="wk-future-eyebrow">Today’s page · visual preview</span><h3>How was today?</h3><p>Start writing when Journal becomes available. This preview shows the reading space, rhythm and optional entry details.</p><div className="wk-writing-lines" aria-hidden="true"><span /><span /><span /><span /></div><span className="wk-writing-footnote">Date and writing will take the lead. Title, mood and photos will be optional.</span></div>{prompt && <div className="wk-journal-prompt"><div><small>A thought to begin with</small><p>What do you want to remember from today?</p></div><IconButton label="Dismiss sample prompt" onClick={() => setPrompt(false)}><X size={17} /></IconButton></div>}<section className="wk-future-section"><div className="wk-section-heading"><h2>Recent entries</h2><button onClick={() => setView("Entries")}>All entries <ChevronRight size={16} aria-hidden="true" /></button></div><EntryList onOpen={setEntryIndex} /></section></div>}
     {view === "Entries" && <div className="wk-journal-entries"><PreviewSearch label="Search sample entries" value={query} onChange={setQuery} placeholder="Search your writing…" /><div className="wk-section-heading"><h2>September 2026</h2><span>Sample entries</span></div><EntryList query={query} onOpen={setEntryIndex} /></div>}
     {view === "Calendar" && <Calendar onOpen={setEntryIndex} />}
     </div>

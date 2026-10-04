@@ -11,12 +11,9 @@ import {
   ArrowLeft,
   Link2,
   ListChecks,
-  MessageSquare,
   Plus,
   Share2,
-  Sparkles,
   StickyNote,
-  X,
 } from "lucide-react";
 import {
   AuthApiError,
@@ -32,7 +29,8 @@ import {
   type PatchNote,
 } from "../../api";
 import { Dialog } from "../../components/ui/Dialog";
-import { Button, IconButton } from "../../components/ui/Button";
+import { Button } from "../../components/ui/Button";
+import { ChatWorkspace } from "../chat/ChatWorkspace";
 import { BoardPresence } from "./BoardPresence";
 import { SharePanel, TasksPanel } from "./components/BoardPanels";
 import type { VisualPatch } from "./boardTypes";
@@ -40,6 +38,7 @@ import { isNoteConflict, useNoteMutationQueue } from "./hooks/useNoteMutationQue
 import { useBoardCursors } from "./hooks/useBoardCursors";
 import { useBoardEditing } from "./hooks/useBoardEditing";
 import { NoteCard } from "./components/NoteCard";
+import { ConnectionEditor } from "./components/ConnectionEditor";
 import { InspectorFrame, PropertiesEditor } from "./components/BoardInspector";
 import type { EditingViewer } from "./NoteEditingIndicator";
 import {
@@ -103,7 +102,7 @@ import {
 } from "../../realtime/reconcile";
 import { editingUserIds } from "../../realtime/editing";
 
-type Panel = "tasks" | "share" | "chat" | null;
+type Panel = "tasks" | "share" | null;
 type WorkspaceProps = {
   id: string;
   titleOverride?: string;
@@ -131,6 +130,7 @@ function WorkspaceContent({
   boardLoaded,
   notify,
 }: WorkspaceProps) {
+  const chatHost = useRef<HTMLElement>(null);
   const editor = useEditorActions();
   const editorNavigation = useEditorNavigation();
   const selected = editorNavigation.selectedNoteId;
@@ -140,6 +140,16 @@ function WorkspaceContent({
     [notes, setNotes] = useState<NoteDto[]>([]),
     [edges, setEdges] = useState<ConnectionDto[]>([]),
     [members, setMembers] = useState<MemberDto[]>([]);
+  const linkedNote = useRef<string | null>(null);
+  useEffect(() => {
+    const linked = () => {
+      const noteId = new URLSearchParams(window.location.search).get("note");
+      if (noteId && linkedNote.current !== noteId && notes.some(note => note.id === noteId)) { linkedNote.current = noteId; editor.select(noteId);
+        requestAnimationFrame(() => document.querySelector<HTMLElement>(`[data-note-id="${noteId}"]`)?.scrollIntoView({ block: "center", inline: "center" })); }
+    };
+    linked(); window.addEventListener("wukna:navigation", linked); window.addEventListener("popstate", linked);
+    return () => { window.removeEventListener("wukna:navigation", linked); window.removeEventListener("popstate", linked); };
+  }, [notes, editor]);
   const [loading, setLoading] = useState(true),
     [failure, setFailure] = useState(""),
     [editTitleId, setEditTitleId] = useState<string | null>(null),
@@ -161,6 +171,8 @@ function WorkspaceContent({
     void boardApi.members(id).then(setMembers).catch(() => undefined);
   }, [id, profileIdentityVersion]);
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
+  const [editingEdgeId, setEditingEdgeId] = useState<string | null>(null);
+  const editingEdge = edges.find((edge) => edge.id === editingEdgeId);
   const pendingConnections = useRef(new Set<string>());
   const connectionTombstones = useRef(new Map<string, number>());
   const notesRef = useRef<NoteDto[]>([]);
@@ -785,27 +797,35 @@ function WorkspaceContent({
     if (!current.connectionId) { await createConnection(current.fixedNoteId, target.id, current.fixedSide, target.side); return; }
     const sourceNoteId = current.endpoint === "source" ? target.id : current.fixedNoteId;
     const targetNoteId = current.endpoint === "target" ? target.id : current.fixedNoteId;
-    if (sourceNoteId === targetNoteId || notesAreConnected(sourceNoteId, targetNoteId, edges, current.connectionId)) { notify("These cards are already connected."); return; }
-    if (pendingConnections.current.has(current.connectionId)) return;
-    pendingConnections.current.add(current.connectionId);
+    await reconnectConnection(current.connectionId, current.version ?? 0, {
+      sourceNoteId, targetNoteId,
+      sourceHandle: current.endpoint === "source" ? target.side : current.fixedSide,
+      targetHandle: current.endpoint === "target" ? target.side : current.fixedSide,
+    });
+  }
+  async function reconnectConnection(connectionId: string, version: number, payload: {
+    sourceNoteId: string; targetNoteId: string; sourceHandle: ConnectionSide; targetHandle: ConnectionSide;
+  }) {
+    if (!board?.canEdit) return false;
+    if (payload.sourceNoteId === payload.targetNoteId || notesAreConnected(payload.sourceNoteId, payload.targetNoteId, edges, connectionId)) {
+      notify("Choose two different cards that are not already connected."); return false;
+    }
+    if (pendingConnections.current.has(connectionId)) return false;
+    pendingConnections.current.add(connectionId);
     try {
-      const updated = await connectionApi.reconnect(id, current.connectionId, current.version ?? 0, {
-        sourceNoteId, targetNoteId,
-        sourceHandle: current.endpoint === "source" ? target.side : current.fixedSide,
-        targetHandle: current.endpoint === "target" ? target.side : current.fixedSide,
-      });
-      mergeConnection(updated); notify("Connection updated");
+      const updated = await connectionApi.reconnect(id, connectionId, version, payload);
+      mergeConnection(updated); notify("Connection updated"); return true;
     } catch (cause) {
       if (cause instanceof AuthApiError && cause.code === "connection_version_conflict") {
         try {
-          const latest = (await connectionApi.list(id)).find((edge) => edge.id === current.connectionId);
+          const latest = (await connectionApi.list(id)).find((edge) => edge.id === connectionId);
           // Preserve a newer event received while the HTTP reload was in flight.
           if (latest) mergeConnection(latest);
-          else setEdges((edges) => edges.filter((edge) => edge.id !== current.connectionId));
+          else setEdges((edges) => edges.filter((edge) => edge.id !== connectionId));
         } catch { notify("Could not reload the connection. Try refreshing the board."); }
       }
-      notify(errorMessage(cause));
-    } finally { pendingConnections.current.delete(current.connectionId); }
+      notify(errorMessage(cause)); return false;
+    } finally { pendingConnections.current.delete(connectionId); }
   }
   async function removeEdge(edgeId: string) {
     try {
@@ -918,9 +938,6 @@ function WorkspaceContent({
             <ArrowLeft size={18} aria-hidden="true" /> Boards
           </Button>
           <span className="divider" />
-          <span className="board-symbol">
-            <Sparkles size={14} />
-          </span>
           <h1>{titleOverride ?? board?.title ?? "Board"}</h1>
         </div>
         <div className="board-actions">
@@ -946,16 +963,6 @@ function WorkspaceContent({
           >
             <Share2 size={18} aria-hidden="true" /> Share
           </Button>
-          <Button
-            variant="secondary"
-            onClick={() => {
-              const next = panel === "chat" ? null : "chat";
-              if (next) editor.closeInspector(false);
-              setPanel(next);
-            }}
-          >
-            <MessageSquare size={18} aria-hidden="true" /> Chat
-          </Button>
         </div>
       </header>
       {loading ? (
@@ -969,39 +976,39 @@ function WorkspaceContent({
           </Button>
         </div>
       ) : (
-        <main className="board-main">
+        <main className="board-main" ref={chatHost}>
           <ZoomControls controller={viewport.controller} />
           <div className="canvas-tools">
             {editable && (
               <>
-                <IconButton
-                  label="New note"
+                <Button variant="secondary" size="compact" className="board-tool-button"
+                  aria-label="New note"
                   onClick={() => void create(0)}
                 >
-                  <StickyNote size={18} aria-hidden="true" />
-                </IconButton>
-                <IconButton
-                  label="New task list"
+                  <StickyNote size={16} aria-hidden="true" /><span>Note</span>
+                </Button>
+                <Button variant="secondary" size="compact" className="board-tool-button"
+                  aria-label="New task list"
                   onClick={() => void create(1)}
                 >
-                  <ListChecks size={18} aria-hidden="true" />
-                </IconButton>
-                <IconButton
-                  label={connecting ? "Cancel connection mode" : "Connect notes"}
-                  className={connecting ? "active" : ""}
+                  <ListChecks size={16} aria-hidden="true" /><span>Task list</span>
+                </Button>
+                <Button variant="secondary" size="compact" className={`board-tool-button${connecting ? " active" : ""}`}
+                  aria-label={connecting ? "Cancel connection mode" : "Connect notes"}
                   aria-pressed={connecting}
                   onClick={() => {
                     if (connecting) connectCancel();
                     else setConnecting(true);
                   }}
                 >
-                  <Link2 size={18} aria-hidden="true" />
-                </IconButton>
+                  <Link2 size={16} aria-hidden="true" /><span>Connect</span>
+                </Button>
               </>
             )}
+            {editable && selectedEdgeId && <Button variant="secondary" size="compact" onClick={() => setEditingEdgeId(selectedEdgeId)}>Edit connection</Button>}
             <span className="tool-rule" />
-            <IconButton
-              label="Tasks"
+            <Button variant="secondary" size="compact" className="board-tool-button"
+              aria-label="Tasks"
               aria-pressed={panel === "tasks"}
               onClick={() => {
                 const next = panel === "tasks" ? null : "tasks";
@@ -1009,8 +1016,9 @@ function WorkspaceContent({
                 setPanel(next);
               }}
             >
-              <ListChecks size={18} aria-hidden="true" />
-            </IconButton>
+              <ListChecks size={16} aria-hidden="true" /><span>Tasks</span>
+            </Button>
+            <ChatWorkspace boardId={id} userId={currentUserId} boardTitle={board?.title ?? "Board"} host={chatHost} />
           </div>
           <div
             className="canvas"
@@ -1197,6 +1205,9 @@ function WorkspaceContent({
                             )?.title
                           }
                           {editable && (
+                            <Button variant="quiet" size="compact" onClick={() => setEditingEdgeId(edge.id)}>Edit connection</Button>
+                          )}
+                          {editable && (
                             <Button variant="quiet" size="compact" onClick={() => void removeEdge(edge.id)}>
                               Remove
                             </Button>
@@ -1230,21 +1241,10 @@ function WorkspaceContent({
               close={() => setPanel(null)}
             />
           )}
-          {panel === "chat" && (
-            <aside className="side-panel">
-              <div className="panel-head">
-                <h2>Board chat</h2>
-                <IconButton label="Close chat" onClick={() => setPanel(null)}>
-                  <X size={18} aria-hidden="true" />
-                </IconButton>
-              </div>
-              <div className="panel-empty">
-                Chat is not available on this board yet. Use notes to share ideas with your board members.
-              </div>
-            </aside>
-          )}
         </main>
       )}
+      {editingEdge && editable && <ConnectionEditor key={editingEdge.id} edge={editingEdge} notes={top}
+        close={() => setEditingEdgeId(null)} save={(payload) => reconnectConnection(editingEdge.id, editingEdge.version, payload)} />}
       {conflicted && (
         <Dialog title="This note changed while you were editing" urgent onClose={() => setConflicted(null)}>
           <p>

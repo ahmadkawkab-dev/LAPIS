@@ -5,12 +5,12 @@ const contactEmail = 'ahmadkawkab.official@gmail.com';
 
 function PublicFrame({ children }: { children: ReactNode }) {
   return (
-    <div className="wk-public">
+    <div className="wk-public"><a className="wk-skip-link" href="#main-content">Skip to content</a>
       <header className="wk-public-header">
         <a href="/" aria-label="Wukna home"><Wordmark /></a>
         <a className="wk-public-header-link" href="/login">Open Wukna</a>
       </header>
-      <main id="main-content">{children}</main>
+      <main id="main-content" tabIndex={-1}>{children}</main>
       <footer className="wk-public-footer">
         <span>Wukna by Hushframe</span>
         <nav aria-label="Legal links">

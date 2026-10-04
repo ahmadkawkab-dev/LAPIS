@@ -391,14 +391,14 @@ export function NoteCard({
       >
         {editable && (
           <span className="note-drag-grip" title="Drag note" aria-hidden="true">
-            <GripVertical size={15} />
+            <GripVertical size={15} aria-hidden="true" />
           </span>
         )}
         <span className="note-type">
           {note.kind === 1 ? (
-            <ListChecks size={13} />
+            <ListChecks size={13} aria-hidden="true" />
           ) : (
-            <StickyNote size={13} />
+            <StickyNote size={13} aria-hidden="true" />
           )}
         </span>
         <strong>
@@ -509,7 +509,7 @@ export function NoteCard({
                   setAddingItem(true);
                 }}
               >
-                <Plus size={13} /> Add item
+                <Plus size={13} aria-hidden="true" /> Add item
               </button>
             )
           )}

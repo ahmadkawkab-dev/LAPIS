@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
 import {
   currentSession,
   exchangeGoogleCode,
@@ -20,15 +20,24 @@ import {
 } from "../api";
 import { AuthScreen } from "../features/auth/AuthScreen";
 import { PrivacyPolicyPage, PublicHome, TermsOfServicePage } from "../features/public/PublicPages";
-import { AccountPanel } from "../features/account/AccountPanel";
+const AccountPanel = lazy(() => import("../features/account/AccountPanel").then((module) => ({ default: module.AccountPanel })));
 import { accountSectionForPath } from "../features/account/accountRoute";
 import { Wordmark } from "../components/brand/Wordmark";
 import { AppShell } from "../components/navigation/AppShell";
 import { Button } from "../components/ui/Button";
+import { LoadingSkeleton } from "../components/ui/LoadingSkeleton";
 import { Notice } from "../components/ui/Notice";
 import { BoardLanding } from "../features/boards/BoardLanding";
+import { DashboardPage } from "../features/dashboard/DashboardPage";
+const TasksPage = lazy(() => import("../features/tasks/TasksPage").then((module) => ({ default: module.TasksPage })));
+const TemplatesPage = lazy(() => import("../features/tasks/TemplatesPage").then((module) => ({ default: module.TemplatesPage })));
+const CalendarPage = lazy(() => import("../features/calendar/CalendarPage").then((module) => ({ default: module.CalendarPage })));
+import { rememberNotificationReturnPath, takeNotificationReturnPath } from "../features/notifications/notificationRoutes";
+import { NotificationRuntime } from "../features/notifications/NotificationRuntime";
+import { clearBrowserNotificationSession } from "../features/notifications/browserPush";
+const NotificationsPage = lazy(() => import("../features/notifications/NotificationsPage").then((module) => ({ default: module.NotificationsPage })));
 import { SoonPage } from "../features/future/PreviewUI";
-import { Workspace } from "../features/boards/BoardWorkspace";
+const Workspace = lazy(() => import("../features/boards/BoardWorkspace").then((module) => ({ default: module.Workspace })));
 import { realtimeConnection } from "../realtime/connection";
 import {
   realtimeEvents,
@@ -40,6 +49,8 @@ import { mergeBoardSummary } from "../realtime/reconcile";
 
 const boardFromPath = (path: string) =>
   /^\/boards\/([0-9a-f-]{36})$/i.exec(path)?.[1] ?? null;
+const taskFromPath = (path: string) =>
+  /^\/tasks\/([0-9a-f-]{36})$/i.exec(path)?.[1] ?? null;
 
 export default function App() {
   const [path, setPath] = useState(window.location.pathname),
@@ -52,11 +63,13 @@ export default function App() {
     [loading, setLoading] = useState(false),
     [failure, setFailure] = useState("");
   const started = useRef(false);
+  const returnPath = useRef<string | null>(null);
   const notify = useCallback((message: string) => setNotice({ message, tone: "default" }), []);
   const warn = useCallback((message: string) => setNotice({ message, tone: "warning" }), []);
   const navigate = useCallback((next: string) => {
     window.history.pushState(null, "", next);
-    setPath(next);
+    setPath(new URL(next, window.location.origin).pathname);
+    window.dispatchEvent(new Event("wukna:navigation"));
   }, []);
   useEffect(() => {
     const pop = () => setPath(window.location.pathname);
@@ -75,19 +88,21 @@ export default function App() {
           code = params.get("code"),
           error = params.get("error");
         linked = params.get("linked") === "google";
-        window.history.replaceState(null, "", "/boards");
-        setPath("/boards");
+        window.history.replaceState(null, "", "/home");
+        setPath("/home");
         if (error) {
           callbackError = errorMessage(new AuthApiError(error));
           setStartupError(callbackError);
         }
         if (code) {
           setSession(await exchangeGoogleCode(code));
+          navigate(takeNotificationReturnPath() ?? "/home");
           return;
         }
       }
       const restored = await bootstrapSession();
       setSession(restored);
+      if (restored && window.location.pathname === "/home") { const target = takeNotificationReturnPath(); if (target) navigate(target); }
       if (restored && callbackError) notify(callbackError);
       else if (restored && linked) notify("Google account linked");
     } catch (cause) {
@@ -96,7 +111,7 @@ export default function App() {
     } finally {
       setStarting(false);
     }
-  }, [notify]);
+  }, [notify, navigate]);
   useEffect(() => {
     if (started.current) return;
     started.current = true;
@@ -142,6 +157,8 @@ export default function App() {
       setSession(null);
       setBoards([]);
       setStartupError("Your session expired. Please sign in again.");
+      const target = window.location.pathname + window.location.search;
+      returnPath.current = rememberNotificationReturnPath(target);
       window.history.replaceState(null, "", "/login");
       setPath("/login");
     });
@@ -149,6 +166,8 @@ export default function App() {
   }, []);
   useEffect(() => {
     if (!starting && !startupBlocked && !session && !["/", "/login", "/register", "/privacy", "/terms"].includes(path)) {
+      const target = window.location.pathname + window.location.search;
+      returnPath.current = rememberNotificationReturnPath(target);
       window.history.replaceState(null, "", "/login");
       setPath("/login");
     }
@@ -158,8 +177,10 @@ export default function App() {
   }, [starting, startupBlocked, session, loadBoards]);
   async function signOut(all: boolean) {
     try {
+      await clearBrowserNotificationSession(true, session?.user.id).catch(() => undefined);
       if (all) await logoutEverywhere();
       else await logout();
+      takeNotificationReturnPath(); returnPath.current = null;
       setSession(null);
       setBoards([]);
       navigate("/login");
@@ -168,6 +189,7 @@ export default function App() {
     }
   }
   const boardId = boardFromPath(path);
+  const taskId = taskFromPath(path);
   const accountSection = accountSectionForPath(path);
   useEffect(() => {
     if (path === "/account") {
@@ -188,6 +210,18 @@ export default function App() {
     setBoards((current) => current.filter((item) => item.id !== deletedId));
     if (boardId === deletedId) navigate("/boards");
     notify("Board deleted");
+  }
+  async function createBoard(title: string) {
+    try {
+      const board = await boardApi.create(title);
+      setBoards(await boardApi.list());
+      notify("Board created");
+      navigate(`/boards/${board.id}`);
+    } catch (cause) {
+      if (cause instanceof AuthApiError && cause.code === "board_limit_reached")
+        void loadBoards(false).catch(() => undefined);
+      throw cause;
+    }
   }
   useEffect(() => {
     if (starting || startupBlocked || !session) return;
@@ -244,7 +278,7 @@ export default function App() {
         onSuccess={(value) => {
           setSession(value);
           setStartupError("");
-          navigate("/boards");
+          navigate(returnPath.current ?? takeNotificationReturnPath() ?? "/home"); returnPath.current = null; takeNotificationReturnPath();
         }}
       />
     );
@@ -254,9 +288,9 @@ export default function App() {
     path === "/register" ||
     path === "/auth/callback"
   ) {
-    window.history.replaceState(null, "", "/boards");
-    queueMicrotask(() => setPath("/boards"));
-    return <div className="wk-startup"><Wordmark /><p role="status">Opening boards…</p></div>;
+    window.history.replaceState(null, "", "/home");
+    queueMicrotask(() => setPath("/home"));
+    return <div className="wk-startup"><Wordmark /><p role="status">Opening your workspace…</p></div>;
   }
   return (
     <AppShell
@@ -264,13 +298,25 @@ export default function App() {
       boards={boards}
       activeBoardId={boardId}
       navigate={navigate}
+      onCreateBoard={createBoard}
       onRenameBoard={renameBoard}
       onDeleteBoard={deleteBoard}
       signOut={() => void signOut(false)}
       signOutEverywhere={() => void signOut(true)}
       notify={notify}
     >
-      {path === "/library" ? <SoonPage area="Library" /> : path === "/library/pictures" ? <SoonPage area="Pictures" /> : path === "/journal" ? <SoonPage area="Journal" /> : path === "/tasks" ? <SoonPage area="Tasks" /> : accountSection ? (
+      <div className="wk-feedback-stack">
+        <NotificationRuntime key={session.user.id} userId={session.user.id} navigate={navigate} />
+        {notice && <Notice message={notice.message} tone={notice.tone} onDismiss={() => setNotice(null)} />}
+      </div>
+      <Suspense fallback={<LoadingSkeleton label="Opening page" layout={path === "/calendar" ? "calendar" : path === "/tasks" ? "week" : "list"} />}>
+      {path === "/home" ? <DashboardPage user={session.user} boards={boards} boardsLoading={loading} boardsError={failure}
+        retryBoards={() => void loadBoards().catch(() => undefined)} navigate={navigate} notify={notify} />
+      : path === "/library" ? <SoonPage area="Library" /> : path === "/library/pictures" ? <SoonPage area="Pictures" /> : path === "/journal" ? <SoonPage area="Journal" /> : path === "/tasks/templates" ? <TemplatesPage notify={notify} navigate={navigate} />
+      : path === "/notifications" ? <NotificationsPage navigate={navigate} notify={notify} />
+      : path === "/tasks" || path === "/tasks/quick" || taskId ? <TasksPage key={path} notify={notify} openTaskId={taskId}
+        initialView={path === "/tasks/quick" ? "inbox" : "week"}
+        onCloseLinked={() => navigate("/tasks")} navigate={navigate} /> : path === "/calendar" ? <CalendarPage notify={notify} navigate={navigate} /> : accountSection ? (
         <AccountPanel
           user={session.user}
           section={accountSection}
@@ -294,7 +340,6 @@ export default function App() {
       ) : (
         <BoardLanding
           boards={boards}
-          displayName={session.user.displayName}
           loading={loading}
           failure={failure}
           retry={() => void loadBoards().catch(() => undefined)}
@@ -302,23 +347,10 @@ export default function App() {
           onRenameBoard={renameBoard}
           onDeleteBoard={deleteBoard}
           onBoardLimitReached={() => warn("Board limit reached. You can have a maximum of 5 boards.")}
-          create={async (title) => {
-            try {
-              const board = await boardApi.create(title);
-              setBoards(await boardApi.list());
-              notify("Board created");
-              navigate(`/boards/${board.id}`);
-            } catch (cause) {
-              if (cause instanceof AuthApiError && cause.code === "board_limit_reached")
-                void loadBoards(false).catch(() => undefined);
-              throw cause;
-            }
-          }}
+          create={createBoard}
         />
       )}
-      {notice && (
-        <Notice message={notice.message} tone={notice.tone} onDismiss={() => setNotice(null)} />
-      )}
+      </Suspense>
     </AppShell>
   );
 }

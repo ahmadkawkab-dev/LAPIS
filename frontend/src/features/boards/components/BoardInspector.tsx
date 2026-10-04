@@ -1,11 +1,12 @@
 import { useEffect, useState } from "react";
-import { X } from "lucide-react";
+import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, X } from "lucide-react";
 import type { NoteDto } from "../../../api";
 import { Button, IconButton } from "../../../components/ui/Button";
 import { notePigments } from "../noteAppearance";
 import { clampDimension, noteDimensionBounds } from "../noteDimensions";
 import { useNoteDraft } from "../editor/EditorStateProvider";
 import type { VisualPatch } from "../boardTypes";
+import { clampBoardPosition } from "../boardBounds";
 
 export function PropertiesEditor({
   note,
@@ -49,6 +50,15 @@ export function PropertiesEditor({
     [height, setHeight] = useState(String(displayedHeight)),
     [busy, setBusy] = useState(false),
     [confirmDelete, setConfirmDelete] = useState(false);
+  const [moving, setMoving] = useState(false);
+  async function moveBy(x: number, y: number) {
+    if (moving) return;
+    const position = clampBoardPosition({ x: (note.positionX ?? 0) + x, y: (note.positionY ?? 0) + y },
+      { width: visualWidth, height: visualHeight });
+    setMoving(true);
+    try { await commitVisual(note.id, { positionX: position.x, positionY: position.y }); }
+    finally { setMoving(false); }
+  }
   const candidateWidth = Number(width);
   const bounds = noteDimensionBounds(note, items, Number.isFinite(candidateWidth) && width ? candidateWidth : displayedWidth);
   useEffect(() => {
@@ -170,6 +180,17 @@ export function PropertiesEditor({
               </label>
             </div>
             <p className="dimension-help">Width {bounds.minWidth}–{bounds.maxWidth}px · Height {bounds.minHeight}–{bounds.maxHeight}px. The minimum adapts to the card's content.</p>
+            <div className="note-move-controls" role="group" aria-label="Move card without dragging">
+              <span>Move card</span>
+              {[
+                { label: 'Move left', x: -32, y: 0, Icon: ArrowLeft },
+                { label: 'Move up', x: 0, y: -32, Icon: ArrowUp },
+                { label: 'Move down', x: 0, y: 32, Icon: ArrowDown },
+                { label: 'Move right', x: 32, y: 0, Icon: ArrowRight },
+              ].map(({ label, x, y, Icon }) => <IconButton key={label} label={label} disabled={moving}
+                onClick={() => void moveBy(x, y)}><Icon size={18} aria-hidden="true" /></IconButton>)}
+            </div>
+            <p className="dimension-help">Move 32 pixels at a time. You can also focus the card and use arrow keys.</p>
           </div>
         </section>
       )}
@@ -188,10 +209,10 @@ export function PropertiesEditor({
             {confirmDelete ? (
               <>
                 <Button variant="quiet" onClick={() => setConfirmDelete(false)}>Cancel</Button>
-                <Button variant="danger" disabled={busy} onClick={() => void remove()}>Confirm delete</Button>
+                <Button variant="danger" loading={busy} onClick={() => void remove()}>Confirm delete</Button>
               </>
             ) : (
-              <Button variant="danger" disabled={busy} onClick={() => setConfirmDelete(true)}>Delete</Button>
+              <Button variant="danger" loading={busy} onClick={() => setConfirmDelete(true)}>Delete</Button>
             )}
           </div>
         </section>

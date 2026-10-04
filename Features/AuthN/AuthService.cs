@@ -173,6 +173,9 @@ public sealed class AuthService(
             .ExecuteUpdateAsync(
                 updates => updates.SetProperty(token => token.IsRevoked, true),
                 cancellationToken);
+        await db.BrowserPushSubscriptions.Where(item => item.UserId == userId)
+            .ExecuteUpdateAsync(set => set.SetProperty(item => item.DisabledAt, timeProvider.GetUtcNow()), cancellationToken);
+        await db.NotificationClientPresence.Where(item => item.UserId == userId).ExecuteDeleteAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
         return changed;
     }

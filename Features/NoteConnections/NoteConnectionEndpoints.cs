@@ -3,6 +3,8 @@ namespace Wukna.Features.NoteConnection;
 using System.Globalization;
 using System.IdentityModel.Tokens.Jwt;
 using Wukna.Features.Board;
+using Wukna.Features.Chat;
+using Wukna.Features.Notifications;
 using Wukna.Features.Notes;
 using Wukna.Features.Realtime;
 using Wukna.Shared.Data.AppDbContext;
@@ -48,10 +50,13 @@ public static class NoteConnectionEndpoints
 
         group.MapPost("/", async (Guid boardId, CreateNoteConnectionRequest request,
             HttpContext context, WuknaDbContext db, BoardActivity activity,
-            BoardRealtimeDispatcher realtime, CancellationToken cancellationToken) =>
+            BoardRealtimeDispatcher realtime, TimeProvider clock, CancellationToken cancellationToken) =>
         {
             if (!TryGetUserId(context, out var userId)) return Results.Unauthorized();
-            var canEdit = await GetAccessAsync(db, boardId, userId, cancellationToken);
+            await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
+            if (!await BoardMembershipLocks.LockBoardAsync(db, boardId, cancellationToken)) return Results.NotFound();
+            var member = await ChatAccess.LockMembershipAsync(db, boardId, userId, cancellationToken);
+            bool? canEdit = member is null ? null : member.Role == BoardRole.Owner || member.CanEdit;
             if (canEdit is null) return Results.NotFound();
             if (!canEdit.Value) return Results.Forbid();
             if (request.SourceNoteId == request.TargetNoteId ||
@@ -60,7 +65,6 @@ public static class NoteConnectionEndpoints
             if (!ValidHandle(request.SourceHandle) || !ValidHandle(request.TargetHandle))
                 return Results.BadRequest(new { error = "invalid_connection_handle" });
 
-            await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
             await LockConnectionsAsync(db, boardId, cancellationToken);
             if (!await ValidNotesAsync(db, boardId, request.SourceNoteId, request.TargetNoteId, cancellationToken))
                 return Results.BadRequest(new { error = "invalid_connection_notes" });
@@ -73,6 +77,8 @@ public static class NoteConnectionEndpoints
                 Type = request.Type, Color = "#888888"
             };
             db.NoteConnections.Add(connection);
+            await NotificationSources.BoardAsync(db, boardId, userId, NotificationType.SharedBoardActivity,
+                "connectionCreated", "note", connection.SourceNoteId, $"connection-created:{connection.Id:N}", clock.GetUtcNow(), cancellationToken);
             activity.MarkUpdated(db, boardId);
             await db.SaveChangesAsync(cancellationToken);
             await transaction.CommitAsync(cancellationToken);
@@ -84,10 +90,13 @@ public static class NoteConnectionEndpoints
 
         group.MapPatch("/{connectionId:guid}", async (Guid boardId, Guid connectionId,
             ReconnectNoteConnectionRequest request, HttpContext context, WuknaDbContext db,
-            BoardActivity activity, BoardRealtimeDispatcher realtime, CancellationToken cancellationToken) =>
+            BoardActivity activity, BoardRealtimeDispatcher realtime, TimeProvider clock, CancellationToken cancellationToken) =>
         {
             if (!TryGetUserId(context, out var userId)) return Results.Unauthorized();
-            var canEdit = await GetAccessAsync(db, boardId, userId, cancellationToken);
+            await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
+            if (!await BoardMembershipLocks.LockBoardAsync(db, boardId, cancellationToken)) return Results.NotFound();
+            var member = await ChatAccess.LockMembershipAsync(db, boardId, userId, cancellationToken);
+            bool? canEdit = member is null ? null : member.Role == BoardRole.Owner || member.CanEdit;
             if (canEdit is null) return Results.NotFound();
             if (!canEdit.Value) return Results.Forbid();
             var versionError = ReadVersion(context, out var version);
@@ -97,7 +106,6 @@ public static class NoteConnectionEndpoints
             if (!ValidHandle(request.SourceHandle) || !ValidHandle(request.TargetHandle))
                 return Results.BadRequest(new { error = "invalid_connection_handle" });
 
-            await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
             await LockConnectionsAsync(db, boardId, cancellationToken);
             var connection = await db.NoteConnections.SingleOrDefaultAsync(c => c.BoardId == boardId && c.Id == connectionId, cancellationToken);
             if (connection is null) return Results.NotFound();
@@ -106,6 +114,9 @@ public static class NoteConnectionEndpoints
                 return Results.BadRequest(new { error = "invalid_connection_notes" });
             if (await ExistsAsync(db, boardId, request.SourceNoteId, request.TargetNoteId, connectionId, cancellationToken))
                 return Results.Conflict(new { error = "connection_exists" });
+            var semantic = connection.SourceNoteId != request.SourceNoteId || connection.TargetNoteId != request.TargetNoteId;
+            if (semantic) await NotificationSources.BoardAsync(db, boardId, userId, NotificationType.SharedBoardActivity,
+                "connectionChanged", "note", request.SourceNoteId, $"connection-updated:{connection.Id:N}:{version}", clock.GetUtcNow(), cancellationToken);
             connection.SourceNoteId = request.SourceNoteId;
             connection.TargetNoteId = request.TargetNoteId;
             connection.SourceHandle = request.SourceHandle;
@@ -122,17 +133,21 @@ public static class NoteConnectionEndpoints
 
         group.MapDelete("/{connectionId:guid}", async (Guid boardId, Guid connectionId,
             HttpContext context, WuknaDbContext db, BoardActivity activity,
-            BoardRealtimeDispatcher realtime, CancellationToken cancellationToken) =>
+            BoardRealtimeDispatcher realtime, TimeProvider clock, CancellationToken cancellationToken) =>
         {
             if (!TryGetUserId(context, out var userId)) return Results.Unauthorized();
-            var canEdit = await GetAccessAsync(db, boardId, userId, cancellationToken);
+            await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
+            if (!await BoardMembershipLocks.LockBoardAsync(db, boardId, cancellationToken)) return Results.NotFound();
+            var member = await ChatAccess.LockMembershipAsync(db, boardId, userId, cancellationToken);
+            bool? canEdit = member is null ? null : member.Role == BoardRole.Owner || member.CanEdit;
             if (canEdit is null) return Results.NotFound();
             if (!canEdit.Value) return Results.Forbid();
-            await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
             await LockConnectionsAsync(db, boardId, cancellationToken);
             var connection = await db.NoteConnections.SingleOrDefaultAsync(c => c.BoardId == boardId && c.Id == connectionId, cancellationToken);
             if (connection is null) return Results.NotFound();
             db.NoteConnections.Remove(connection);
+            await NotificationSources.BoardAsync(db, boardId, userId, NotificationType.SharedBoardActivity,
+                "connectionDeleted", "board", boardId, $"connection-deleted:{connection.Id:N}", clock.GetUtcNow(), cancellationToken);
             activity.MarkUpdated(db, boardId);
             try { await db.SaveChangesAsync(cancellationToken); }
             catch (DbUpdateConcurrencyException) { return VersionConflict(); }

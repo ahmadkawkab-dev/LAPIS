@@ -70,6 +70,7 @@ postgres-data/
 # Operating-system metadata and temporary files
 /App_Data/profile-images/
 /App_Data/data-protection-keys/
+/App_Data/chat-attachments/
 .DS_Store
 Thumbs.db
 Desktop.ini
@@ -81,3 +82,11 @@ Desktop.ini
 *.md
 !/README.md
 !/docs/session-restoration.md
+!/docs/UI_UX_DESIGN_SYSTEM.md
+!/docs/UI_UX_AUDIT.md
+!/docs/UI_UX_REFACTOR_AUDIT.md
+
+# Local visual verification captures (summary stays in the audit)
+/docs/ui-ux-verification/
+!/docs/BOARD_CHAT.md
+!/docs/NOTIFICATIONS.md

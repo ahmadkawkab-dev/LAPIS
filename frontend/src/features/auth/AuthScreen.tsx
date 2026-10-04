@@ -1,9 +1,9 @@
-import { useEffect, useState, type FormEvent } from 'react';
-import { ArrowRight } from 'lucide-react';
-import { login, register, startGoogleLogin, type AuthSession } from '../../auth';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
+import { ArrowRight, Eye, EyeOff } from 'lucide-react';
+import { AuthApiError, login, register, startGoogleLogin, type AuthSession } from '../../auth';
 import { errorMessage } from '../../api';
 import { Wordmark } from '../../components/brand/Wordmark';
-import { Button } from '../../components/ui/Button';
+import { Button, IconButton } from '../../components/ui/Button';
 import { Field } from '../../components/ui/Field';
 import { ThemeControl } from '../../components/ui/ThemeControl';
 
@@ -17,18 +17,29 @@ export function AuthScreen({ mode, error: initialError, onSuccess, navigate }: {
   const [password, setPassword] = useState('');
   const [error, setError] = useState(initialError);
   const [busy, setBusy] = useState(false);
-  useEffect(() => setError(initialError), [initialError, mode]);
+  const [showPassword, setShowPassword] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState<{ email?: string; password?: string }>({});
+  const errorSummary = useRef<HTMLParagraphElement>(null);
+  const form = useRef<HTMLFormElement>(null);
+  useEffect(() => { setError(initialError); setFieldErrors({}); setShowPassword(false); }, [initialError, mode]);
+  useEffect(() => { if (error) (form.current?.querySelector<HTMLInputElement>('[aria-invalid="true"]') ?? errorSummary.current)?.focus(); }, [error, fieldErrors]);
 
   async function submit(event: FormEvent) {
     event.preventDefault();
     if (busy) return;
     setBusy(true);
     setError('');
+    setFieldErrors({});
     try {
       const session = await (mode === 'login' ? login : register)(email.trim(), password);
       onSuccess(session);
     } catch (cause) {
       setError(errorMessage(cause));
+      if (cause instanceof AuthApiError) {
+        if (cause.code === 'email_already_registered') setFieldErrors({ email: errorMessage(cause) });
+        else if (mode === 'register' && cause.details.length && cause.details.every((detail) => /^Passwords?\b/i.test(detail)))
+          setFieldErrors({ password: cause.details.join(' ') });
+      }
     } finally {
       setBusy(false);
     }
@@ -48,15 +59,20 @@ export function AuthScreen({ mode, error: initialError, onSuccess, navigate }: {
         </div>
         <div className="wk-auth-card">
           <h2>{mode === 'login' ? 'Return to your space' : 'Make room for what matters'}</h2>
-          {error && <p className="wk-alert" role="alert" id="auth-error">{error}</p>}
-          <form onSubmit={submit} aria-busy={busy} aria-describedby={error ? 'auth-error' : undefined}>
+          {error && !Object.values(fieldErrors).some(Boolean) && <p ref={errorSummary} tabIndex={-1} className="wk-alert" role="alert" id="auth-error">{error}</p>}
+          <form ref={form} onSubmit={submit} aria-busy={busy} aria-describedby={error && !Object.values(fieldErrors).some(Boolean) ? 'auth-error' : undefined}>
             <Field label="Email address" name="email" type="email" autoComplete="username" autoCapitalize="none" spellCheck={false}
-              value={email} onChange={(event) => setEmail(event.target.value)} required disabled={busy} />
-            <Field label="Password" name="password" type="password" autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
+              value={email} error={fieldErrors.email} onChange={(event) => setEmail(event.target.value)} required disabled={busy} />
+            <div className="wk-password-field"><Field label="Password" name="password" type={showPassword ? 'text' : 'password'} autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
               value={password} onChange={(event) => setPassword(event.target.value)} required disabled={busy}
-              minLength={mode === 'register' ? 8 : undefined} hint={mode === 'register' ? 'Use at least 8 characters.' : undefined} />
-            <Button type="submit" disabled={busy || !email.trim() || !password}>
-              {busy ? 'Please wait…' : mode === 'login' ? 'Sign in' : 'Create account'}<ArrowRight size={18} aria-hidden="true" />
+              error={fieldErrors.password} minLength={mode === 'register' ? 8 : undefined}
+              hint={mode === 'register' ? 'Use 8 or more characters, including uppercase, lowercase, a number and a symbol.' : undefined} />
+              <IconButton className="wk-password-toggle" label={showPassword ? 'Hide password' : 'Show password'}
+                aria-pressed={showPassword} disabled={busy} onClick={() => setShowPassword((value) => !value)}>
+                {showPassword ? <EyeOff size={18} aria-hidden="true" /> : <Eye size={18} aria-hidden="true" />}
+              </IconButton></div>
+            <Button type="submit" loading={busy} loadingLabel={mode === 'login' ? 'Signing in…' : 'Creating…'} disabled={!email.trim() || !password}>
+              {mode === 'login' ? 'Sign in' : 'Create account'}<ArrowRight size={18} aria-hidden="true" />
             </Button>
           </form>
           {mode === 'register' && <p className="wk-auth-consent">

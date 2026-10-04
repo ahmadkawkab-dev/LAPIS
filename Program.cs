@@ -6,6 +6,10 @@ using Wukna.Features.NoteConnection;
 using Wukna.Features.Realtime;
 using Wukna.Features.Users;
 using Wukna.Features.Profile;
+using Wukna.Features.Tasks;
+using Wukna.Features.Calendar;
+using Wukna.Features.Notifications;
+using Wukna.Features.Chat;
 using Wukna.Shared.Data.AppDbContext;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Google;
@@ -21,6 +25,11 @@ using System.Security.Claims;
 using System.Text;
 using System.Net;
 
+if (args is ["--generate-vapid-keys", var keyFile])
+{
+    WebPushConfiguration.WriteKeyPair(keyFile);
+    return;
+}
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddEndpointsApiExplorer();
@@ -47,6 +56,10 @@ ValidateGoogleOAuthSettings(googleSettings, builder.Environment);
 builder.Services.AddSingleton(jwtOptions);
 builder.Services.AddSingleton(googleSettings);
 builder.Services.AddSingleton(TimeProvider.System);
+builder.Services.AddChatMessages();
+builder.Services.AddOptions<BoardOptions>().BindConfiguration("Board")
+    .Validate(options => options.MaxGuests is >= 0 and <= 1000 && options.MembershipWritesPerMinute is >= 1 and <= 10000,
+        "Board:MaxGuests must be 0–1000; Board:MembershipWritesPerMinute must be 1–10000.").ValidateOnStart();
 builder.Services.AddSingleton<BoardActivity>();
 builder.Services.AddScoped<BoardSummaryReader>();
 builder.Services.AddSingleton<IProfileImageStore, FileProfileImageStore>();
@@ -71,6 +84,14 @@ builder.Services.AddScoped<ExternalLoginGrantService>();
 builder.Services.AddScoped<GoogleLinkIntentService>();
 builder.Services.AddScoped<GoogleAccountLinkService>();
 builder.Services.AddHostedService<ExternalLoginGrantCleanupService>();
+builder.Services.AddHostedService<TaskReminderWorker>();
+builder.Services.AddOptions<NotificationOptions>().BindConfiguration("Notifications");
+builder.Services.AddOptions<WebPushOptions>().BindConfiguration("WebPush").Validate(options => options.IsValid(),
+    "Enabled WebPush requires a matching P-256 VAPID key pair and a mailto or HTTPS subject.").ValidateOnStart();
+builder.Services.AddHttpClient("web-push").RemoveAllLoggers().ConfigurePrimaryHttpMessageHandler(WebPushSender.CreateHandler);
+builder.Services.AddSingleton<INotificationPushSender, WebPushSender>();
+builder.Services.AddSingleton<NotificationDispatcher>();
+builder.Services.AddHostedService(provider => provider.GetRequiredService<NotificationDispatcher>());
 // Keep the pre-rename cryptographic application name so existing protected auth payloads
 // remain readable across deployment of the Wukna identifiers.
 var dataProtection = builder.Services.AddDataProtection().SetApplicationName("Lapis");
@@ -118,8 +139,9 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             OnMessageReceived = context =>
             {
                 // Browser WebSocket/EventSource APIs cannot attach the Authorization header.
-                // Accept SignalR's query-token fallback on the one hub path only.
-                if (context.HttpContext.Request.Path.StartsWithSegments(BoardHub.Path))
+                // Accept SignalR's query-token fallback only on the two hub paths.
+                if (context.HttpContext.Request.Path.StartsWithSegments(BoardHub.Path) ||
+                    context.HttpContext.Request.Path.StartsWithSegments(ChatHub.Path))
                 {
                     var accessToken = context.Request.Query["access_token"].ToString();
                     if (!string.IsNullOrWhiteSpace(accessToken)) context.Token = accessToken;
@@ -224,6 +246,7 @@ app.UseStaticFiles(ProfileImageStaticFiles.Options(app.Services.GetRequiredServi
 app.UseRouting();
 app.UseAuthentication();
 app.UseAuthorization();
+app.UseRateLimiter();
 
 app.MapHealthChecks("/health");
 app.MapAuthEndpoints();
@@ -231,6 +254,19 @@ app.MapBoardEndpoints();
 app.MapNoteEndpoints();
 app.MapNoteConnectionEndpoints();
 app.MapProfileEndpoints();
+app.MapPersonalTaskEndpoints();
+app.MapTaskPlanningEndpoints();
+app.MapTaskTemplateEndpoints();
+app.MapCalendarEventEndpoints();
+app.MapCalendarRangeEndpoints();
+app.MapTaskReminderEndpoints();
+app.MapCalendarReminderEndpoints();
+app.MapWebPushEndpoints();
+app.MapNotificationEndpoints();
+app.MapNotificationPreferenceEndpoints();
+app.MapChatMessageEndpoints();
+app.MapHub<ChatHub>(ChatHub.Path, options =>
+    options.CloseOnAuthenticationExpiration = true).RequireAuthorization();
 app.MapHub<BoardHub>(BoardHub.Path, options =>
     options.CloseOnAuthenticationExpiration = true).RequireAuthorization();
 
