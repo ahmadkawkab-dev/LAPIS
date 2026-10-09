@@ -336,11 +336,7 @@ export function BoardLanding({
                 <div className="wk-board-state wk-board-state--primary">
                   <BrandMark />
                   <h3>{normalizedQuery ? "No matching boards of your own" : "Your Wukna starts here"}</h3>
-                  <p>{normalizedQuery ? "Try another title to find one of your boards." : "Create your first board and begin gathering ideas."}</p>
-                  {!normalizedQuery && <Button onClick={openCreateForm} aria-disabled={atBoardLimit}>
-                    <Plus size={18} aria-hidden="true" />
-                    Create your first board
-                  </Button>}
+                  <p>{normalizedQuery ? "Try another title to find one of your boards." : "Use New board above to begin gathering ideas."}</p>
                 </div>
               )}
             </section>

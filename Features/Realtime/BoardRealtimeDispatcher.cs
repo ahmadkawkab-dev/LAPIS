@@ -27,6 +27,7 @@ public sealed record BoardSummaryRemovedEvent(Guid BoardId);
 /// </summary>
 public sealed class BoardRealtimeDispatcher(
     IBoardRealtimePublisher publisher,
+    IBoardConnectionRegistry connections,
     BoardSummaryReader summaries,
     WuknaDbContext db,
     ILogger<BoardRealtimeDispatcher> logger)
@@ -52,21 +53,20 @@ public sealed class BoardRealtimeDispatcher(
         }
     }
 
-    public async Task BoardDeletedAsync(Guid boardId, IReadOnlyCollection<Guid> memberIds)
+    public async Task BoardDeletedAsync(Guid boardId, IReadOnlyCollection<Guid> memberIds, BoardAccessChange? change = null)
     {
-        foreach (var memberId in memberIds)
-        {
-            await TryPublishAsync(
-                BoardRealtimeEvents.BoardAccessRevoked, boardId, entityId: null,
-                userId: memberId, version: null,
-                () => publisher.RevokeBoardAccessAsync(boardId, memberId));
-        }
-        await TryPublishAsync(
+        // Initiate all controls before the first await, so the endpoint can then
+        // release its lifecycle lease without reordering removal with re-invitation.
+        var revocations = memberIds.Select(memberId => TryPublishAsync(
+            BoardRealtimeEvents.BoardAccessRevoked, boardId, entityId: null,
+            userId: memberId, version: null,
+            () => publisher.RevokeBoardAccessAsync(boardId, memberId, change: change))).ToArray();
+        var summaryRemoval = TryPublishAsync(
             BoardRealtimeEvents.BoardSummaryRemoved, boardId, entityId: null,
             userId: null, version: null,
-            () => publisher.PublishUsersAsync(memberIds,
-                BoardRealtimeEvents.BoardSummaryRemoved,
+            () => publisher.PublishUsersAsync(memberIds, BoardRealtimeEvents.BoardSummaryRemoved,
                 new BoardSummaryRemovedEvent(boardId)));
+        await Task.WhenAll(revocations.Append(summaryRemoval));
     }
 
     public async Task BoardUpdatedAsync(BoardUpdatedEvent message)
@@ -143,7 +143,7 @@ public sealed class BoardRealtimeDispatcher(
     }
 
     public async Task MembersChangedAsync(
-        Guid boardId, Guid? removedUserId = null, Guid? downgradedUserId = null)
+        Guid boardId, Guid? removedUserId = null, Guid? downgradedUserId = null, BoardAccessChange? change = null)
     {
         if (downgradedUserId is Guid downgraded)
             await TryPublishAsync(
@@ -152,14 +152,14 @@ public sealed class BoardRealtimeDispatcher(
                 () => publisher.StopBoardEditingAsync(boardId, downgraded));
         if (removedUserId is Guid removed)
         {
-            await TryPublishAsync(
+            var revocation = TryPublishAsync(
                 BoardRealtimeEvents.BoardAccessRevoked,
                 boardId,
                 entityId: null,
                 removed,
                 version: null,
-                () => publisher.RevokeBoardAccessAsync(boardId, removed));
-            await TryPublishAsync(
+                () => publisher.RevokeBoardAccessAsync(boardId, removed, change: change));
+            var summaryRemoval = TryPublishAsync(
                 BoardRealtimeEvents.BoardSummaryRemoved,
                 boardId,
                 entityId: null,
@@ -169,22 +169,10 @@ public sealed class BoardRealtimeDispatcher(
                     [removed],
                     BoardRealtimeEvents.BoardSummaryRemoved,
                     new BoardSummaryRemovedEvent(boardId)));
+            await Task.WhenAll(revocation, summaryRemoval);
         }
 
-        var recipients = await ReadSummariesAsync(boardId);
-        if (recipients is null) return;
-
-        await TryPublishAsync(
-            BoardRealtimeEvents.MembersChanged,
-            boardId,
-            entityId: null,
-            userId: null,
-            version: null,
-            () => publisher.PublishUsersAsync(
-                recipients.Select(recipient => recipient.UserId).ToArray(),
-                BoardRealtimeEvents.MembersChanged,
-                new MembersChangedEvent(boardId)));
-        await PublishSummariesAsync(boardId, recipients);
+        await PublishValidatedSummariesAsync(boardId, membersChanged: true);
     }
 
     private Task PublishBoardAsync<TEvent>(
@@ -201,44 +189,34 @@ public sealed class BoardRealtimeDispatcher(
             version,
             () => publisher.PublishBoardAsync(boardId, eventName, message));
 
-    private async Task PublishSummariesAsync(Guid boardId)
-    {
-        var recipients = await ReadSummariesAsync(boardId);
-        if (recipients is not null) await PublishSummariesAsync(boardId, recipients);
-    }
+    private Task PublishSummariesAsync(Guid boardId) => PublishValidatedSummariesAsync(boardId, membersChanged: false);
 
-    private async Task<IReadOnlyList<BoardSummaryRecipient>?> ReadSummariesAsync(Guid boardId)
+    private async Task PublishValidatedSummariesAsync(Guid boardId, bool membersChanged)
     {
-        try
+        // The token is captured BEFORE the database recipient query. Never attach
+        // a new token to old results. Every send rechecks it atomically with initiation.
+        for (var attempt = 0; attempt < 2; attempt++)
         {
-            return await summaries.ListForBoardAsync(boardId, CancellationToken.None);
-        }
-        catch (Exception exception)
-        {
-            logger.LogError(
-                exception,
-                "Failed to build realtime board summaries after commit for board {BoardId}",
-                boardId);
-            return null;
-        }
-    }
-
-    private async Task PublishSummariesAsync(
-        Guid boardId,
-        IReadOnlyList<BoardSummaryRecipient> recipients)
-    {
-        foreach (var recipient in recipients)
-        {
-            await TryPublishAsync(
-                BoardRealtimeEvents.BoardSummaryChanged,
-                boardId,
-                entityId: null,
-                recipient.UserId,
-                version: null,
-                () => publisher.PublishUsersAsync(
-                    [recipient.UserId],
-                    BoardRealtimeEvents.BoardSummaryChanged,
-                    recipient.Summary));
+            var revision = connections.PublicationRevision(boardId);
+            if (revision is null) return;
+            try
+            {
+                var recipients = await summaries.ListForBoardAsync(boardId, CancellationToken.None);
+                if (membersChanged)
+                    await publisher.PublishBoardUsersAsync(boardId, revision.Value,
+                        recipients.Select(recipient => recipient.UserId).ToArray(), BoardRealtimeEvents.MembersChanged,
+                        new MembersChangedEvent(boardId));
+                foreach (var recipient in recipients)
+                    await publisher.PublishBoardUsersAsync(boardId, revision.Value, [recipient.UserId],
+                        BoardRealtimeEvents.BoardSummaryChanged, recipient.Summary);
+                return;
+            }
+            catch (BoardRecipientsChangedException) { /* One bounded rebuild, then suppress. */ }
+            catch (Exception exception)
+            {
+                logger.LogError(exception, "Failed to validate or publish realtime board summaries after commit for board {BoardId}", boardId);
+                return;
+            }
         }
     }
 

@@ -154,8 +154,7 @@ public sealed class BoardCursorRegistry : IBoardCursorRegistry
 
 public sealed class BoardCursorCleanupService(
     IBoardCursorRegistry cursors,
-    IBoardConnectionRegistry connections,
-    IHubContext<BoardHub> hub,
+    IBoardRealtimePublisher publisher,
     TimeProvider timeProvider,
     ILogger<BoardCursorCleanupService> logger) : BackgroundService
 {
@@ -168,13 +167,9 @@ public sealed class BoardCursorCleanupService(
             {
                 foreach (var stopped in cursors.Expire(timeProvider.GetUtcNow()))
                 {
-                    var recipients = connections.GetConnections(stopped.BoardId)
-                        .Where(connectionId => connectionId != stopped.ConnectionId)
-                        .ToArray();
-                    if (recipients.Length == 0) continue;
                     try
                     {
-                        await hub.Clients.Clients(recipients).SendAsync(
+                        await publisher.PublishBoardExceptAsync(stopped.BoardId, stopped.ConnectionId,
                             BoardRealtimeEvents.BoardCursorStopped,
                             stopped,
                             stoppingToken);

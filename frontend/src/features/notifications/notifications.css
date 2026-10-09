@@ -1,15 +1,15 @@
 .wk-notifications-page { min-height: 100%; background: var(--background); }
-.wk-notifications-page > header { min-height: 5.8125rem; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-4); padding: 1.125rem 1.75rem; border-bottom: 1px solid var(--border); background: var(--surface); }
-.wk-notifications-eyebrow { color: var(--muted-foreground); font-size: var(--text-meta); font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
+.wk-notifications-page > header { min-height: var(--page-header-height); display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-4); padding: 1.125rem var(--page-gutter); border-bottom: 1px solid var(--border); background: var(--surface); }
+.wk-notifications-eyebrow { display: block; color: var(--muted-foreground); font-size: var(--text-label); line-height: 1.2; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
 .wk-notifications-page h1 { margin: .125rem 0; font-size: var(--text-page-title); font-weight: 700; line-height: 1.2; }
-.wk-notifications-page > header p { margin: .125rem 0; color: var(--muted-foreground); font-size: .75rem; }
+.wk-notifications-page > header p { margin: .125rem 0; line-height: 1.2; color: var(--muted-foreground); font-size: .75rem; }
 .wk-notifications-page > header .wk-button {  white-space: nowrap;  }
-.wk-notifications-toolbar { min-height: 2.75rem; display: flex; align-items: center; gap: .75rem; padding: 0 1.75rem; border-bottom: 1px solid var(--border); background: var(--surface); }
+.wk-notifications-toolbar { min-height: var(--page-toolbar-height); display: flex; align-items: center; gap: .75rem; padding: 0 1.75rem; border-bottom: 1px solid var(--border); background: var(--surface); }
 .wk-notifications-toolbar > button:not(.wk-button) { align-self: stretch; padding: .375rem .5rem; border: 0; border-bottom: 2px solid transparent; color: var(--muted-foreground); background: transparent;  }
 .wk-notifications-toolbar > button.active { border-color: var(--primary); color: var(--primary); font-weight: 700; }
 .wk-notifications-toolbar .wk-button { margin-left: auto;  }
-.wk-notifications-layout { width: min(100% - 2rem, 88rem); display: grid; grid-template-columns: minmax(0, 1.9fr) minmax(15rem, .7fr); gap: .75rem; margin: .75rem auto 1.5rem; }
-.wk-notifications-list, .wk-notifications-side > div { border: 1px solid var(--border); border-radius: .5rem; background: var(--surface); }
+.wk-notifications-layout { width: min(100% - 2rem, 88rem); display: grid; grid-template-columns: minmax(0, 1fr) 21.25rem; gap: var(--space-4); margin: var(--space-4) auto var(--space-6); }
+.wk-notifications-list, .wk-notifications-side > div { border: 1px solid var(--border); border-radius: var(--radius-card); background: var(--surface); }
 .wk-notifications-list { min-width: 0; }
 .wk-notifications-list-header { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-4); padding: var(--space-4); border-bottom: 1px solid var(--border); }
 .wk-notifications-list-header h2 { margin: 0; font-size: var(--text-section-title); }
@@ -26,7 +26,7 @@
 .wk-notifications-side > div { padding: 1rem; }
 .wk-notifications-side h2 { margin: 0 0 .25rem; font-size: .875rem; }
 .wk-notifications-side p { margin: .25rem 0 .75rem; color: var(--muted-foreground); font-size: var(--text-meta); }
-.wk-notifications-side li button { width: 100%; display: flex; align-items: center; gap: .5rem; padding: .5rem; border: 0; border-radius: .375rem; color: var(--foreground); background: var(--selected); text-align: start; }
+.wk-notifications-side li button { width: 100%; display: flex; align-items: center; gap: .5rem; padding: .5rem; border: 0; border-radius: var(--radius-control); color: var(--foreground); background: var(--selected); text-align: start; }
 .wk-notifications-side li + li { margin-top: .375rem; }
 .wk-notifications-side li time { flex: none; font-size: var(--text-meta); }
 .wk-notifications-side li strong { min-width: 0; flex: 1; overflow-wrap: anywhere; font-size: var(--text-meta); }
@@ -36,7 +36,7 @@
 .wk-notifications-empty { min-height: 18rem; display: grid; align-content: center; justify-items: center; gap: var(--space-3); }
 .wk-notifications-empty h3 { margin: 0; color: var(--foreground); font-size: var(--text-card-title); }
 .wk-notifications-empty p { margin: 0; }
-.wk-notifications-error { display: flex; align-items: center; gap: 1rem; margin: .75rem 1rem; padding: .75rem 1rem; border: 1px solid var(--destructive); border-radius: .375rem; color: var(--destructive); background: var(--surface); font-size: .75rem; }
+.wk-notifications-error { display: flex; align-items: center; gap: 1rem; margin: .75rem 1rem; padding: .75rem 1rem; border: 1px solid var(--destructive); border-radius: var(--radius-control); color: var(--destructive); background: var(--surface); font-size: .75rem; }
 @media (max-width: 900px) { .wk-notifications-layout { grid-template-columns: minmax(0, 1fr); } .wk-notifications-list { min-height: 0; } }
 @media (max-width: 600px) { .wk-notifications-page > header { min-height: 4.5rem; padding: .75rem 1rem; } .wk-notifications-toolbar { padding: 0 1rem; } .wk-notifications-layout { width: calc(100% - 1.25rem); } .wk-notifications-list li { flex-wrap: wrap; } .wk-notification-actions { max-width: none; width: 100%; justify-content: start; padding-left: 2.75rem; } }
 @media (max-width: 600px) {
@@ -48,3 +48,10 @@
 .wk-notifications-page > header > div { min-width: 0; }
 .wk-notifications-toolbar { flex-wrap: wrap; }
 .wk-notification-copy strong { overflow-wrap: anywhere; }
+
+.wk-notifications-list { min-height: calc(100dvh - var(--page-header-height) - var(--page-toolbar-height) - 2.5rem); }
+.wk-notifications-list-header h2, .wk-notifications-side h2 { font-weight: 700; }
+.wk-notification-icon { border-radius: var(--radius-control); }
+.wk-notifications-toolbar > button { transition: color var(--motion-fast) var(--ease-settle), background-color var(--motion-fast) var(--ease-settle); }
+.wk-notifications-more { padding: var(--space-4); border-top: 1px solid var(--border); }
+@media (max-width: 767px) { .wk-notifications-list { min-height: 0; } }

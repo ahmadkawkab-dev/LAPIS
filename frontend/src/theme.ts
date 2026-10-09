@@ -10,9 +10,18 @@ let preference = normalize(document.documentElement.dataset.themePreference);
 
 function applyTheme() {
   const resolved = preference === 'system' ? (media.matches ? 'dark' : 'light') : preference;
+  const root = document.documentElement;
+  const changed = root.dataset.theme !== resolved;
+  // Apply paired foreground/background tokens together, avoiding low-contrast
+  // intermediate colors from hover transitions when the entire theme changes.
+  if (changed) root.classList.add('wk-theme-changing');
   document.documentElement.dataset.themePreference = preference;
   document.documentElement.dataset.theme = resolved;
   document.documentElement.style.colorScheme = resolved;
+  if (changed) {
+    void root.offsetHeight;
+    root.classList.remove('wk-theme-changing');
+  }
   listeners.forEach((notify) => notify());
 }
 

@@ -284,8 +284,7 @@ export function CalendarPage({ notify, navigate }: {
           </section>;
         })}</div>
         <section className="wk-calendar-mobile-agenda" aria-label="Selected day">
-          <div className="wk-calendar-mobile-agenda-heading"><h2>{dayLabel(selectedDate, { weekday: "long", month: "long", day: "numeric" })}</h2>
-            <Button variant="quiet" size="compact" onClick={() => newEvent(selectedDate)}><Plus size={14} aria-hidden="true" /> Add event</Button></div>
+          <div className="wk-calendar-mobile-agenda-heading"><h2>{dayLabel(selectedDate, { weekday: "long", month: "long", day: "numeric" })}</h2></div>
           <p>{(dayItems.get(selectedDate) ?? []).length} items</p>
           {(dayItems.get(selectedDate) ?? []).length ? <ul>{(dayItems.get(selectedDate) ?? []).map((item) =>
             <li key={`${item.source}-${item.id}`}><button onClick={() => void openItem(item)}

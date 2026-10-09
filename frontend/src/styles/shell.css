@@ -3,13 +3,14 @@
   min-height: 100vh;
   min-height: 100dvh;
   display: grid;
-  grid-template-columns: 17rem minmax(0, 1fr);
+  grid-template-columns: var(--sidebar-width) minmax(0, 1fr);
+  transition: grid-template-columns var(--motion-layout) var(--ease-settle);
   color: var(--foreground);
   background: var(--background);
 
 }
 
-.wk-app-shell--collapsed { grid-template-columns: 5.25rem minmax(0, 1fr); }
+.wk-app-shell--collapsed { grid-template-columns: var(--sidebar-collapsed-width) minmax(0, 1fr); }
 
 .wk-skip-link {
   position: fixed;
@@ -142,7 +143,7 @@
 .wk-rename-board { display: grid; gap: var(--space-4); }
 .wk-rename-board .wk-dialog-actions { margin-block-start: var(--space-2); }
 
-@media (max-width: 800px) {
+@media (max-width: 767px) {
   .wk-app-shell,
   .wk-app-shell--collapsed { display: flex; flex-direction: column; padding-block: 4rem calc(4.25rem + env(safe-area-inset-bottom)); }
   .wk-sidebar { display: none; }
@@ -176,22 +177,22 @@
   }
   .wk-mobile-nav-item { min-height: var(--target-size); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--space-1); border: 0; border-radius: var(--radius-control); color: var(--muted-foreground); background: transparent; font-size: var(--text-meta); font-weight: 600; }
   .wk-mobile-nav-item--active { color: var(--foreground); background: var(--selected); }
-  .wk-shell-main { min-height: calc(100dvh - 8.25rem); overflow: visible; }
+  .wk-shell-main { min-height: calc(100dvh - var(--mobile-header-height) - var(--mobile-nav-height)); overflow: visible; }
   .wk-notice { bottom: calc(4.75rem + env(safe-area-inset-bottom)); }
 }
 
 /* Figma account layout; profile and authentication handlers stay in AccountPanel. */
 .wk-account-page { width: 100%; max-width: none; min-height: 100%; display: block; margin: 0; padding: 0; overflow: visible; background: var(--background); container-type: inline-size; }
-.wk-account-page-heading { min-height: 5.8125rem; padding: 1.125rem 1.75rem; border-bottom: 1px solid var(--border); background: var(--surface); }
-.wk-account-eyebrow { color: var(--muted-foreground); font-size: var(--text-meta); font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
+.wk-account-page-heading { min-height: var(--page-header-height); padding: 1.125rem var(--page-gutter); border-bottom: 1px solid var(--border); background: var(--surface); }
+.wk-account-eyebrow { display: block; color: var(--muted-foreground); font-size: var(--text-label); line-height: 1.2; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
 .wk-account-page-heading h1 { margin: .125rem 0; font-family: var(--font-ui); font-size: var(--text-page-title); font-weight: 700; line-height: 1.2; }
-.wk-account-page-heading p { margin: .125rem 0 0; color: var(--muted-foreground); font-size: .75rem; }
+.wk-account-page-heading p { margin: .125rem 0 0; line-height: 1.2; color: var(--muted-foreground); font-size: .75rem; }
 .wk-account-page-heading .wk-button {  padding: .375rem .75rem;  }
-.wk-account-layout { display: grid; grid-template-columns: 11rem minmax(0, 1fr); align-content: start; gap: 1.5rem; min-height: calc(100dvh - 5.8125rem); background: var(--background); }
+.wk-account-layout { display: grid; grid-template-columns: var(--account-rail-width) minmax(0, 1fr); align-content: stretch; gap: 1.5rem; min-height: calc(100dvh - var(--page-header-height)); background: var(--background); }
 .wk-account-tabs { display: flex; flex-direction: column; align-items: stretch; gap: .125rem; padding: 1rem .75rem; border: 0; border-right: 1px solid var(--border); }
 .wk-account-tabs button { min-height: 2.125rem; padding: .375rem .625rem; border: 0; border-radius: .375rem; font-size: .75rem; text-align: start; }
 .wk-account-tabs button[aria-current="page"] { border: 0; color: var(--primary); background: var(--selected); }
-.wk-account-main { width: min(100%, 55rem); min-width: 0; padding: 1.25rem 1.25rem 2rem 0; }
+.wk-account-main { width: min(100%, 44.125rem); min-width: 0; padding: 1.25rem 1.25rem 2rem 0; }
 .wk-account-panel { gap: 1.5rem; }
 .wk-profile-form .wk-account-section { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .75rem; }
 .wk-profile-form .wk-account-section h2, .wk-profile-photo-row { grid-column: 1 / -1; }
@@ -206,13 +207,13 @@
 .wk-account-main .wk-field input { min-height: 2.25rem; padding: .375rem .5rem; background: var(--surface); font-size: var(--text-control); }
 .wk-account-main .wk-field small { font-size: var(--text-meta); }
 .wk-account-legal { padding: .75rem 1.25rem; margin: 0; border-top: 1px solid var(--border); }
-@container (max-width: 72rem) { .wk-account-layout { grid-template-columns: 11.5rem minmax(0, 1fr); gap: 1rem; } }
+@container (max-width: 72rem) { .wk-account-layout { grid-template-columns: var(--account-rail-width) minmax(0, 1fr); gap: 1rem; } }
 @container (max-width: 44rem) {
   .wk-account-layout { display: block; min-height: 0; }
   .wk-account-tabs { flex-direction: row; padding: .5rem 1rem; border-right: 0; border-bottom: 1px solid var(--border); }
   .wk-account-main { width: 100%; padding: .75rem 1rem; }
 }
-@media (max-width: 800px) {
+@media (max-width: 767px) {
   .wk-account-page-heading { min-height: 4.5rem; padding: .75rem 1rem; }
 }
 @media (max-width: 480px) {
@@ -229,8 +230,8 @@
 }
 
 /* Figma application shell: compact navigation with the existing board list retained. */
-.wk-app-shell { grid-template-columns: 14.5rem minmax(0, 1fr); font-family: var(--font-ui); }
-.wk-app-shell--collapsed { grid-template-columns: 4.25rem minmax(0, 1fr); }
+.wk-app-shell { grid-template-columns: var(--sidebar-width) minmax(0, 1fr); font-family: var(--font-ui); }
+.wk-app-shell--collapsed { grid-template-columns: var(--sidebar-collapsed-width) minmax(0, 1fr); }
 .wk-sidebar {
   gap: 0;
   padding: 1.125rem .875rem 1rem;
@@ -284,9 +285,11 @@
 .wk-sidebar--collapsed .wk-sidebar-boards,
 .wk-sidebar--collapsed .wk-sidebar-account-copy,
 .wk-sidebar--collapsed .wk-sidebar-account > svg { display: none; }
-.wk-sidebar--collapsed .wk-sidebar-new { width: 2.25rem; padding: .375rem; }
+.wk-sidebar--collapsed .wk-sidebar-new { justify-self: center; width: 2.25rem; padding: .375rem; }
 .wk-sidebar--collapsed .wk-shell-link { justify-content: center; padding-inline: 0; }
 .wk-sidebar--collapsed .wk-sidebar-account { display: flex; justify-content: center; }
+.wk-sidebar--collapsed .wk-sidebar-nav,
+.wk-sidebar--collapsed .wk-sidebar-utilities { width: 100%; }
 .wk-sidebar--collapsed .wk-shell-link { position: relative; }
 .wk-sidebar--collapsed .wk-shell-link > .wk-nav-badge { display: inline-flex; position: absolute; inset-block-start: -.125rem; inset-inline-end: 0; min-width: 1rem; height: 1rem; padding-inline: .1875rem; font-size: var(--text-meta); }
 .wk-sidebar-create-form { display: grid; gap: 1rem; }
@@ -294,9 +297,9 @@
 .wk-sidebar-create-form input { width: 100%; min-height: 2.75rem; padding: .5rem .75rem; border: 1px solid var(--control-border); border-radius: var(--radius-control); color: var(--foreground); background: var(--surface); }
 .wk-sidebar-create-form p { margin: 0; color: var(--destructive); }
 
-@media (max-width: 800px) {
-  .wk-app-shell, .wk-app-shell--collapsed { padding-block: 3.75rem calc(4.25rem + env(safe-area-inset-bottom)); }
-  .wk-mobile-header { min-height: 3.75rem; background: var(--surface); backdrop-filter: none; }
+@media (max-width: 767px) {
+  .wk-app-shell, .wk-app-shell--collapsed { padding-block: var(--mobile-header-height) calc(var(--mobile-nav-height) + env(safe-area-inset-bottom)); }
+  .wk-mobile-header { height: var(--mobile-header-height); min-height: var(--mobile-header-height); padding-block: 0; background: var(--surface); backdrop-filter: none; }
   .wk-mobile-brand { align-items: center; gap: .5rem; font-size: .875rem; }
   .wk-mobile-brand .wk-sidebar-monogram { width: 1.5rem; height: 1.5rem; font-size: var(--text-meta); }
   .wk-mobile-nav { grid-template-columns: repeat(4, minmax(0, 1fr)); background: var(--surface); backdrop-filter: none; }
@@ -310,17 +313,35 @@
 /* Shared control density and navigation focus. */
 .wk-shell-main { scroll-padding-block: var(--space-6); }
 .wk-shell-main:focus { outline: none; }
-.wk-shell-link, .wk-board-link { min-height: var(--control-size); font-size: var(--text-control); }
-.wk-sidebar-header > .wk-icon-button { min-width: var(--control-size); width: var(--control-size); min-height: var(--control-size); }
-.wk-sidebar-search { min-height: var(--control-size); border-color: var(--control-border); }
+.wk-shell-link, .wk-board-link { min-height: var(--navigation-size); font-size: var(--text-control); }
+.wk-sidebar-header > .wk-icon-button { min-width: var(--control-size-compact); width: var(--control-size-compact); min-height: var(--control-size-compact); }
+.wk-sidebar-search { min-height: 2rem; border-color: var(--control-border); }
 .wk-sidebar-search kbd { font-size: var(--text-meta); }
-.wk-account-main .wk-field input { min-height: var(--target-size); font-size: var(--text-body); }
-.wk-account-tabs button { min-height: var(--target-size); font-size: var(--text-control); }
+.wk-account-main .wk-field input { min-height: var(--control-size); font-size: var(--text-body); }
+.wk-account-tabs button { min-height: var(--control-size); font-size: var(--text-control); }
 .wk-account-page-heading > div, .wk-provider-row > div { min-width: 0; overflow-wrap: anywhere; }
-@media (max-width: 800px) {
+@media (max-width: 767px) {
   html { scroll-padding-block: 5rem; }
   .wk-mobile-nav-item { font-size: var(--text-meta); }
   .wk-account-tabs { flex-wrap: wrap; }
   .wk-account-page-heading h1 { font-size: var(--text-page-title); }
   .wk-profile-photo-row { flex-wrap: wrap; }
+}
+
+/* Tablet rail expands over the content so the board viewport keeps its space. */
+@media (min-width: 768px) and (max-width: 1199px) {
+  .wk-app-shell, .wk-app-shell--collapsed { grid-template-columns: var(--sidebar-tablet-width) minmax(0, 1fr); }
+  .wk-shell-main { grid-column: 2; }
+  .wk-sidebar { position: fixed; inset: 0 auto 0 0; width: var(--sidebar-tablet-width); transition: width var(--motion-layout) var(--ease-settle); }
+  .wk-sidebar--collapsed { padding-inline: var(--space-2); }
+  .wk-sidebar:not(.wk-sidebar--collapsed) { width: var(--sidebar-width); box-shadow: var(--shadow-panel); }
+  .wk-shell-link { min-height: 2.375rem; }
+}
+@media (pointer: coarse) {
+  .wk-shell-link, .wk-board-link, .wk-sidebar-header > .wk-icon-button { min-height: var(--target-size); }
+}
+
+.wk-account-tabs button { transition: background-color var(--motion-fast) var(--ease-settle), color var(--motion-fast) var(--ease-settle); }
+@media (max-width: 767px), (pointer: coarse) {
+  .wk-account-tabs button, .wk-account-main .wk-field input { min-height: var(--target-size); }
 }

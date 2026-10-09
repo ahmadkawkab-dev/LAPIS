@@ -46,10 +46,15 @@ public interface IBoardRealtimePublisher
         TEvent message,
         CancellationToken cancellationToken = default);
 
+    Task PublishBoardExceptAsync<TEvent>(Guid boardId, string? excludedConnection, string eventName,
+        TEvent message, CancellationToken cancellationToken = default);
+    Task PublishBoardUsersAsync<TEvent>(Guid boardId, long membershipRevision, IReadOnlyCollection<Guid> userIds,
+        string eventName, TEvent message, CancellationToken cancellationToken = default);
+
     Task RevokeBoardAccessAsync(
         Guid boardId,
         Guid userId,
-        CancellationToken cancellationToken = default);
+        CancellationToken cancellationToken = default, BoardAccessChange? change = null);
 
     Task StopBoardEditingAsync(
         Guid boardId,
@@ -65,142 +70,93 @@ public sealed class BoardRealtimePublisher(
     IBoardCursorRegistry cursors,
     ILogger<BoardRealtimePublisher> logger) : IBoardRealtimePublisher
 {
-    public async Task StopBoardEditingAsync(
-        Guid boardId, Guid userId, CancellationToken cancellationToken = default)
+    public Task PublishBoardAsync<TEvent>(Guid boardId, string eventName, TEvent message,
+        CancellationToken cancellationToken = default) =>
+        PublishBoardExceptAsync(boardId, null, eventName, message, cancellationToken);
+
+    public Task PublishBoardExceptAsync<TEvent>(Guid boardId, string? excludedConnection,
+        string eventName, TEvent message, CancellationToken cancellationToken = default) =>
+        connections.StartPublication(boardId, excludedConnection, recipients =>
+            hub.Clients.Clients(recipients.ToArray()).SendAsync(eventName, message, cancellationToken));
+
+    public Task PublishBoardUsersAsync<TEvent>(Guid boardId, long membershipRevision,
+        IReadOnlyCollection<Guid> userIds, string eventName, TEvent message,
+        CancellationToken cancellationToken = default) =>
+        connections.StartUserPublication(boardId, membershipRevision, () => userIds.Count == 0
+            ? Task.CompletedTask
+            : hub.Clients.Users(userIds.Select(id => id.ToString("D")).ToArray())
+                .SendAsync(eventName, message, cancellationToken));
+
+    public Task PublishUsersAsync<TEvent>(IReadOnlyCollection<Guid> userIds, string eventName,
+        TEvent message, CancellationToken cancellationToken = default)
+    {
+        // Known sensitive board contracts require a board authorization boundary.
+        // Preserve generic user addressing for existing personal/control messages.
+        if (eventName is BoardRealtimeEvents.BoardUpdated or BoardRealtimeEvents.NoteCreated or
+            BoardRealtimeEvents.NoteUpdated or BoardRealtimeEvents.NoteDeleted or BoardRealtimeEvents.ConnectionCreated or
+            BoardRealtimeEvents.ConnectionUpdated or BoardRealtimeEvents.ConnectionDeleted or BoardRealtimeEvents.MembersChanged or
+            BoardRealtimeEvents.ProfileChanged or BoardRealtimeEvents.BoardSummaryChanged or BoardRealtimeEvents.NoteGeometryPreview or
+            BoardRealtimeEvents.NoteGeometryPreviewEnded or BoardRealtimeEvents.BoardPresenceChanged or BoardRealtimeEvents.NoteEditingStarted or
+            BoardRealtimeEvents.NoteEditingStopped or BoardRealtimeEvents.BoardCursorMoved or BoardRealtimeEvents.BoardCursorStopped)
+            throw new InvalidOperationException("Sensitive board user publications require validated recipients.");
+        return userIds.Count == 0 ? Task.CompletedTask : hub.Clients.Users(userIds.Select(id => id.ToString("D")).ToArray())
+            .SendAsync(eventName, message, cancellationToken);
+    }
+
+    public async Task StopBoardEditingAsync(Guid boardId, Guid userId, CancellationToken cancellationToken = default)
     {
         foreach (var connectionId in connections.GetConnections(boardId, userId))
         {
             foreach (var preview in previews.EndBoard(boardId, connectionId))
-                await hub.Clients.Group(BoardRealtimeGroups.ForBoard(boardId)).SendAsync(
-                    BoardRealtimeEvents.NoteGeometryPreviewEnded,
-                    BoardHub.Ended(preview), cancellationToken);
+                await PublishBoardAsync(boardId, BoardRealtimeEvents.NoteGeometryPreviewEnded, BoardHub.Ended(preview), cancellationToken);
             foreach (var stopped in editing.EndBoard(boardId, connectionId))
-                await hub.Clients.Group(BoardRealtimeGroups.ForBoard(boardId)).SendAsync(
-                    BoardRealtimeEvents.NoteEditingStopped, stopped, cancellationToken);
+                await PublishBoardAsync(boardId, BoardRealtimeEvents.NoteEditingStopped, stopped, cancellationToken);
         }
     }
-    public Task PublishBoardAsync<TEvent>(
-        Guid boardId,
-        string eventName,
-        TEvent message,
-        CancellationToken cancellationToken = default) =>
-        hub.Clients.Group(BoardRealtimeGroups.ForBoard(boardId))
-            .SendAsync(eventName, message, cancellationToken);
 
-    public Task PublishUsersAsync<TEvent>(
-        IReadOnlyCollection<Guid> userIds,
-        string eventName,
-        TEvent message,
-        CancellationToken cancellationToken = default) =>
-        userIds.Count == 0
-            ? Task.CompletedTask
-            : hub.Clients.Users(userIds.Select(userId => userId.ToString("D")))
-                .SendAsync(eventName, message, cancellationToken);
-
-    public async Task RevokeBoardAccessAsync(
-        Guid boardId,
-        Guid userId,
-        CancellationToken cancellationToken = default)
+    public async Task RevokeBoardAccessAsync(Guid boardId, Guid userId,
+        CancellationToken cancellationToken = default, BoardAccessChange? change = null)
     {
-        var removal = connections.RemoveUser(boardId, userId);
-        var connectionIds = removal.ConnectionIds;
+        var connectionIds = change is null ? connections.RemoveUser(boardId, userId).ConnectionIds
+            : change.Connections.GetValueOrDefault(userId) ?? [];
+        // A re-invited member must explicitly rejoin. An obsolete revocation must
+        // never remove or notify that new registration generation.
+        var renewed = connections.GetConnections(boardId, userId);
+        connectionIds = connectionIds.Where(id => !renewed.Contains(id)).ToArray();
         if (connectionIds.Count == 0) return;
+        // Consume the old registrations' transient state before yielding. A fresh
+        // join after lease release must never have its state cleared by old cleanup.
+        var endedPreviews = connectionIds.SelectMany(id => previews.EndBoard(boardId, id)).ToArray();
+        var endedEditing = connectionIds.SelectMany(id => editing.EndBoard(boardId, id)).ToArray();
+        var endedCursors = connectionIds.SelectMany(id => cursors.EndBoard(boardId, id)).ToArray();
+        // Initiate the intentional control while the endpoint still owns its
+        // lifecycle lease. Its asynchronous completion and other cleanup do not
+        // hold that lease or block new membership operations.
+        var control = hub.Clients.Clients(connectionIds.ToArray()).SendAsync(BoardRealtimeEvents.BoardAccessRevoked,
+            new BoardAccessRevokedEvent(boardId), cancellationToken);
+        foreach (var preview in endedPreviews)
+            await TryCleanupEventAsync(boardId, BoardRealtimeEvents.NoteGeometryPreviewEnded, BoardHub.Ended(preview), cancellationToken);
+        foreach (var stopped in endedEditing)
+            await TryCleanupEventAsync(boardId, BoardRealtimeEvents.NoteEditingStopped, stopped, cancellationToken);
+        foreach (var stopped in endedCursors)
+            await TryCleanupEventAsync(boardId, BoardRealtimeEvents.BoardCursorStopped, stopped, cancellationToken);
+        // Group cleanup is queued by the registry and handled independently. Its
+        // failure cannot prevent these intentional control notifications.
+        await TryCleanupEventAsync(boardId, BoardRealtimeEvents.BoardPresenceChanged,
+            connections.GetPresence(boardId), cancellationToken);
+        await control;
+    }
 
-        foreach (var connectionId in connectionIds)
+    private async Task TryCleanupEventAsync<TEvent>(Guid boardId, string eventName, TEvent message,
+        CancellationToken ct)
+    {
+        try
         {
-            foreach (var preview in previews.EndBoard(boardId, connectionId))
-            {
-                try
-                {
-                    await hub.Clients.GroupExcept(
-                        BoardRealtimeGroups.ForBoard(boardId),
-                        [connectionId]).SendAsync(
-                            BoardRealtimeEvents.NoteGeometryPreviewEnded,
-                            BoardHub.Ended(preview),
-                            cancellationToken);
-                }
-                catch (Exception exception)
-                {
-                    logger.LogDebug(exception,
-                        "Geometry cleanup was not delivered during access revocation for board {BoardId}",
-                        boardId);
-                }
-            }
+            await PublishBoardAsync(boardId, eventName, message, ct);
         }
-
-        foreach (var connectionId in connectionIds)
+        catch (Exception exception)
         {
-            foreach (var stopped in editing.EndBoard(boardId, connectionId))
-            {
-                var recipients = connections.GetConnections(boardId);
-                if (recipients.Count > 0)
-                {
-                    try
-                    {
-                        await hub.Clients.Clients(recipients).SendAsync(
-                            BoardRealtimeEvents.NoteEditingStopped,
-                            stopped,
-                            cancellationToken);
-                    }
-                    catch (Exception exception)
-                    {
-                        logger.LogDebug(exception,
-                            "Editing cleanup was not delivered during access revocation for board {BoardId}",
-                            boardId);
-                    }
-                }
-            }
+            logger.LogDebug(exception, "Realtime cleanup {EventName} was not delivered for board {BoardId}", eventName, boardId);
         }
-
-        foreach (var connectionId in connectionIds)
-        {
-            foreach (var stopped in cursors.EndBoard(boardId, connectionId))
-            {
-                var recipients = connections.GetConnections(boardId);
-                if (recipients.Count == 0) continue;
-                try
-                {
-                    await hub.Clients.Clients(recipients).SendAsync(
-                        BoardRealtimeEvents.BoardCursorStopped,
-                        stopped,
-                        cancellationToken);
-                }
-                catch (Exception exception)
-                {
-                    logger.LogDebug(exception,
-                        "Cursor cleanup was not delivered during access revocation for board {BoardId}",
-                        boardId);
-                }
-            }
-        }
-
-        await Task.WhenAll(connectionIds.Select(connectionId =>
-            hub.Groups.RemoveFromGroupAsync(
-                connectionId,
-                BoardRealtimeGroups.ForBoard(boardId),
-                cancellationToken)));
-
-        var remainingConnectionIds = connections.GetConnections(boardId);
-        if (remainingConnectionIds.Count > 0)
-        {
-            try
-            {
-                await hub.Clients.Clients(remainingConnectionIds).SendAsync(
-                    BoardRealtimeEvents.BoardPresenceChanged,
-                    removal.Presence.Snapshot,
-                    cancellationToken);
-            }
-            catch (Exception exception)
-            {
-                logger.LogDebug(exception,
-                    "Presence cleanup was not delivered during access revocation for board {BoardId}",
-                    boardId);
-            }
-        }
-
-        await hub.Clients.Clients(connectionIds).SendAsync(
-            BoardRealtimeEvents.BoardAccessRevoked,
-            new BoardAccessRevokedEvent(boardId),
-            cancellationToken);
     }
 }

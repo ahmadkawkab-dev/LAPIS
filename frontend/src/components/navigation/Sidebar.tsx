@@ -113,7 +113,7 @@ export function Sidebar({
     </div>
 
     <div className="wk-sidebar-utilities">
-      <Button className="wk-sidebar-new" size="compact" onClick={() => setCreating(true)}><Plus size={15} aria-hidden="true" /><span>New board</span></Button>
+      <Button className="wk-sidebar-new" size="compact" aria-label="New board" title={collapsed ? 'New board' : undefined} onClick={() => setCreating(true)}><Plus size={15} aria-hidden="true" /><span>New board</span></Button>
       <label className="wk-sidebar-search">
         <Search size={14} aria-hidden="true" />
         <input ref={searchRef} value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search boards" aria-label="Search boards" />

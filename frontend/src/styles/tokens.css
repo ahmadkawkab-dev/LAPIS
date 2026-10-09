@@ -11,7 +11,7 @@
   --selected: #e3ece5;
   --border: #dedfd9;
   --control-border: #7D8877;
-  --focus: #486653;
+  --focus: #2868d8;
   --destructive: #a33f3a;
   --destructive-on-light-content: #A13F47;
   --destructive-on-dark-content: #F0A1A6;
@@ -53,19 +53,37 @@
   --collaborator-6: #66558A;
   --collaborator-6-foreground: #FFFFFF;
 
-  --font-ui: 'Instrument Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-ui: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
   --font-editorial: 'Newsreader', Georgia, serif;
-  --font-mono: 'DM Mono', ui-monospace, monospace;
-  --text-meta: .75rem;
-  --text-control: .875rem;
-  --text-body: 1rem;
+  --font-mono: 'Roboto Mono', ui-monospace, monospace;
+  --text-meta: .6875rem;
+  --text-control: .75rem;
+  --text-body: .875rem;
   --text-heading: clamp(2rem, 5vw, 3rem);
-  --text-page-title: 1.5rem;
-  --text-section-title: 1.125rem;
-  --text-card-title: 1rem;
+  --text-page-title: 1.25rem;
+  --text-section-title: .875rem;
+  --text-card-title: .875rem;
+  --text-display: 2.5rem;
+  --text-label: .625rem;
   --control-size: 2.25rem;
-  --page-gutter: clamp(1rem, 3vw, 2rem);
-  --leading-body: 1.6;
+  --control-size-compact: 1.875rem;
+  --navigation-size: 2.125rem;
+  --icon-size: 1rem;
+  --icon-size-small: .875rem;
+  --sidebar-width: 14.5rem;
+  --sidebar-collapsed-width: 4.25rem;
+  --sidebar-tablet-width: 3.875rem;
+  --page-header-height: 5.8125rem;
+  --page-toolbar-height: 3rem;
+  --board-toolbar-height: 2.875rem;
+  --board-inspector-width: 17.5rem;
+  --board-chat-width: 24.375rem;
+  --calendar-rail-width: 14.125rem;
+  --account-rail-width: 13.125rem;
+  --mobile-header-height: 3.5rem;
+  --mobile-nav-height: 4.25rem;
+  --page-gutter: 1.75rem;
+  --leading-body: 1.45;
   --space-1: .25rem;
   --space-2: .5rem;
   --space-3: .75rem;
@@ -79,9 +97,12 @@
   --radius-control: .375rem;
   --radius-card: .625rem;
   --radius-panel: .625rem;
+  --radius-large: .875rem;
+  --radius-xl: 1.25rem;
   --radius-note: .75rem .75rem .75rem .375rem;
   --shadow-card: 0 1px 2px #1718150a;
-  --shadow-panel: 0 12px 32px #17181512;
+  --shadow-panel: 0 4px 16px #17181512;
+  --shadow-selected: 0 10px 30px #17181524;
   --border-width: 1px;
   --focus-width: 2px;
   --focus-offset: 3px;
@@ -100,8 +121,12 @@
   --layer-toast: 100;
   --motion-fast: 120ms;
   --motion-panel: 180ms;
+  --motion-layout: 240ms;
+  --motion-loading: 900ms;
   --motion-signal: 450ms;
   --ease-settle: cubic-bezier(.2, .7, .2, 1);
+  --ease-enter: cubic-bezier(0, 0, .2, 1);
+  --ease-exit: cubic-bezier(.4, 0, 1, 1);
   --board-card-alt-surface: #eee9f4;
   --selected-foreground: #274331;
 }
@@ -119,7 +144,7 @@
   --selected: #324739;
   --border: #3e4b40;
   --control-border: #718174;
-  --focus: #b8d8bd;
+  --focus: #91baff;
   --destructive: #f1a7a2;
   --success: #a5c0aa;
   --warning: #E7BE75;
@@ -149,5 +174,5 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  :root { --motion-fast: 0ms; --motion-panel: 0ms; --motion-signal: 0ms; }
+  :root { --motion-fast: 0ms; --motion-panel: 0ms; --motion-layout: 0ms; --motion-signal: 0ms; }
 }

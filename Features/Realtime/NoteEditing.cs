@@ -160,8 +160,7 @@ public sealed class NoteEditingRegistry : INoteEditingRegistry
 
 public sealed class NoteEditingCleanupService(
     INoteEditingRegistry editing,
-    IBoardConnectionRegistry connections,
-    Microsoft.AspNetCore.SignalR.IHubContext<BoardHub> hub,
+    IBoardRealtimePublisher publisher,
     TimeProvider timeProvider,
     ILogger<NoteEditingCleanupService> logger) : BackgroundService
 {
@@ -174,11 +173,9 @@ public sealed class NoteEditingCleanupService(
             {
                 foreach (var stopped in editing.Expire(timeProvider.GetUtcNow()))
                 {
-                    var recipients = connections.GetConnections(stopped.BoardId).ToArray();
-                    if (recipients.Length == 0) continue;
                     try
                     {
-                        await hub.Clients.Clients(recipients).SendAsync(
+                        await publisher.PublishBoardAsync(stopped.BoardId,
                             BoardRealtimeEvents.NoteEditingStopped,
                             stopped,
                             stoppingToken);

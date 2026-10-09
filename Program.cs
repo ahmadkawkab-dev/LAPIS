@@ -20,6 +20,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.SignalR;
 using Wukna.Shared.Health;
+using Wukna.Shared.Errors;
 using Microsoft.IdentityModel.Tokens;
 using System.Security.Claims;
 using System.Text;
@@ -32,6 +33,7 @@ if (args is ["--generate-vapid-keys", var keyFile])
 }
 var builder = WebApplication.CreateBuilder(args);
 
+builder.Services.AddExceptionHandler<UnexpectedExceptionHandler>();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 builder.Services.AddHealthChecks()
@@ -71,6 +73,10 @@ builder.Services.AddSingleton<INoteGeometryPreviewRegistry, NoteGeometryPreviewR
 builder.Services.AddSingleton<INoteEditingRegistry, NoteEditingRegistry>();
 builder.Services.AddSingleton<IBoardCursorRegistry, BoardCursorRegistry>();
 builder.Services.AddSingleton<IBoardRealtimePublisher, BoardRealtimePublisher>();
+// Authorization coordination below is process-local: one serving API process.
+// Session affinity or a SignalR backplane alone does not make revocation safe.
+builder.Services.AddSingleton<BoardGroupCleanupService>();
+builder.Services.AddHostedService(provider => provider.GetRequiredService<BoardGroupCleanupService>());
 builder.Services.AddHostedService<NoteEditingCleanupService>();
 builder.Services.AddHostedService<BoardCursorCleanupService>();
 builder.Services.AddSingleton<IUserIdProvider, SubjectUserIdProvider>();
@@ -236,6 +242,7 @@ builder.Services.Configure<ForwardedHeadersOptions>(options =>
 var app = builder.Build();
 
    
+app.UseMiddleware<UnexpectedExceptionMiddleware>();
 app.UseForwardedHeaders();
 app.UseSwagger();
 app.UseSwaggerUI();

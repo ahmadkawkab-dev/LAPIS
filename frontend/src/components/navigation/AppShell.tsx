@@ -29,7 +29,13 @@ export function AppShell({
   notify: (message: string) => void;
   children: ReactNode;
 }) {
-  const [collapsed, setCollapsed] = useState(false);
+  const [collapsed, setCollapsed] = useState(() => window.matchMedia('(min-width: 768px) and (max-width: 1199px)').matches);
+  useEffect(() => {
+    const tablet = window.matchMedia('(min-width: 768px) and (max-width: 1199px)');
+    const adaptNavigation = () => setCollapsed(tablet.matches);
+    tablet.addEventListener('change', adaptNavigation);
+    return () => tablet.removeEventListener('change', adaptNavigation);
+  }, []);
   const path = window.location.pathname;
   const main = useRef<HTMLElement>(null);
   const previousPath = useRef(path);

@@ -197,6 +197,24 @@ The focus is on creating something calm, flexible, and personal while still bein
 | Real-time | SignalR |
 | Infrastructure | Docker, Nginx, GitHub Actions |
 
+### Board realtime authorization and deployment
+
+Board authorization coordination supports **one serving API process**. The production Compose file defines one API service, but this is not a live replica-count check. Adding replicas, overlapping serving processes during deployment, or changing membership through out-of-band SQL requires a separately reviewed authorization design. Sticky sessions and a SignalR backplane alone do not propagate the registry's revocation state. Drain the previous serving process before starting its replacement; do not roll back to group-authorized broadcasts while old connections remain active.
+
+Membership changes and board joins share a per-board lifecycle gate, acquired before database locks. Revocation excludes all of the member's registered connections before commit. Sensitive publications select eligible recipients and initiate transport under the registry's short synchronous lock; asynchronous waits occur outside that lock. Publications already initiated before exclusion can finish later. Native SignalR groups never authorize sensitive board data, including cursor, geometry, presence, editing, and background cleanup events.
+
+User-targeted board summaries and membership events use the existing database recipient queries with a membership revision captured before the query and checked at every send. Stale results receive at most one fresh rebuild; validation failure suppresses the affected publication. Intentional `BoardAccessRevoked`, `BoardSummaryRemoved`, and personal profile notifications retain their existing contracts. A re-invitation does not restore old subscriptions: the member must complete a fresh database-authorized join.
+
+Background `NotificationChanged` events containing board data also validate the current membership incarnation under a captured revision and check it at send initiation. This adds one selective visibility query for board notification delivery; personal notifications retain their own authorization. A revision conflict leaves durable notification work available for its existing retry mechanism.
+
+Eligibility is restored only after a verified rollback or settled membership reconciliation. An uncertain outcome remains excluded. Reconciliation uses the existing aggregate database lock only for that recovery path, with a two-second attempt budget, bounded batches, and backoff up to 30 seconds. Routine publications add no recipient database queries or transactions; existing editing permission checks remain.
+
+Group cleanup retains one record per connection/board pair, retries at most five times with backoff, and limits actual outstanding native operations to four. Timed-out operations that ignore cancellation retain their concurrency slot and block reuse of the affected connection ID until they actually settle. Fresh registration generations invalidate obsolete retries; disconnect releases retained records. Cleanup success never grants access.
+
+Compared with locking membership rows for every publication, this approach avoids a database round trip and transaction on each frequent event. It requires lifecycle, revision and registration-generation bookkeeping within one process. A database locking design can coordinate multiple replicas only if every membership writer, join and publication follows compatible locking and subscription-incarnation rules; that would add database load, transport latency and lock contention. Scaling this registry design requires distributed authorization coordination, not merely distributed message transport.
+
+Security tests use real local Production Kestrel/WebSocket connections for normal removal, commit/publication races, multiple tabs, reconnect/rejoin, deletion and downgrade. Native cleanup failures are injected at the component boundary; these tests do not establish actual socket non-delivery under injected group-removal failure. The performance comparison uses real local sockets and PostgreSQL, reports server send completion rather than browser latency, and writes `wukna-board-realtime-performance-*.json` in the test process's temporary directory.
+
 ## Project Status
 
 Wukna is under active development.

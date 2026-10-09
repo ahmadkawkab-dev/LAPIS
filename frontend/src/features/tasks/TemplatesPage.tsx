@@ -93,8 +93,7 @@ export function TemplatesPage({ notify, navigate }: { notify: (message: string) 
             <span className="wk-template-card-footer"><em>Personal</em><small>{template.items.length} {template.items.length === 1 ? "task" : "tasks"}</small></span>
           </button>)}</div> : <div className="wk-templates-empty">
             <Boxes size={24} aria-hidden="true" /><h3>{search ? "No matching templates" : "No templates yet"}</h3>
-            <p>{search ? "Try another name." : "Create one to reuse a set of tasks."}</p>
-            {!search && <Button size="compact" onClick={() => setDialogTarget("new")}>Create template</Button>}
+            <p>{search ? "Try another name." : "Use Create template above to reuse a set of tasks."}</p>
           </div>}
         {hasMore && <Button variant="secondary" size="compact" disabled={loadingMore} onClick={() => void loadMore()}>{loadingMore ? "Loading…" : "Load more templates"}</Button>}
       </div>

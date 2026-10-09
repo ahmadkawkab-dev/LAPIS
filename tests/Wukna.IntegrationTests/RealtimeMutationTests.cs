@@ -481,10 +481,16 @@ public sealed class RealtimeMutationTests(PostgresFixture postgres)
                 : Task.CompletedTask;
         }
 
+        public Task PublishBoardExceptAsync<TEvent>(Guid boardId, string? excludedConnection, string eventName,
+            TEvent message, CancellationToken cancellationToken = default) => PublishBoardAsync(boardId, eventName, message, cancellationToken);
+
+        public Task PublishBoardUsersAsync<TEvent>(Guid boardId, long revision, IReadOnlyCollection<Guid> userIds,
+            string eventName, TEvent message, CancellationToken cancellationToken = default) => PublishUsersAsync(userIds, eventName, message, cancellationToken);
+
         public Task RevokeBoardAccessAsync(
             Guid boardId,
             Guid userId,
-            CancellationToken cancellationToken = default)
+            CancellationToken cancellationToken = default, BoardAccessChange? change = null)
         {
             Interlocked.Increment(ref attempts);
             return ThrowOnPublish

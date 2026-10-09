@@ -194,13 +194,13 @@ function QuickTemplates({ navigate }: { navigate: (path: string) => void }) {
   useEffect(() => { void load(); }, [load]);
   return <aside className="wk-quick-template-panel" aria-label="Task templates">
     <div className="wk-quick-template-heading"><div><h2>Templates</h2><p>Reusable plans for recurring work.</p></div>
-      <button type="button" onClick={() => navigate("/tasks/templates")}>Browse all</button></div>
+      <button type="button" onClick={() => navigate("/tasks/templates")}>{!loading && !error && !templates.length ? "Create template" : "Browse all"}</button></div>
     {loading && <LoadingSkeleton label="Loading templates…" />}
     {error && <div role="alert"><p>{error}</p><Button variant="secondary" size="compact" onClick={() => void load()}>Try again</Button></div>}
     {!loading && !error && (templates.length ? <ul>{templates.slice(0, 5).map((template) => <li key={template.id}>
-      <button type="button" onClick={() => navigate("/tasks/templates")}><span><Sparkles size={15} aria-hidden="true" /></span>
-        <strong>{template.name}<small>{template.items.length} {template.items.length === 1 ? "task" : "tasks"}</small></strong><ChevronRight size={15} aria-hidden="true" /></button>
-    </li>)}</ul> : <div className="wk-quick-template-empty"><p>No templates yet.</p><Button size="compact" onClick={() => navigate("/tasks/templates")}>Create a template</Button></div>)}
+      <div className="wk-quick-template-summary"><span><Sparkles size={15} aria-hidden="true" /></span>
+        <strong>{template.name}<small>{template.items.length} {template.items.length === 1 ? "task" : "tasks"}</small></strong></div>
+    </li>)}</ul> : <div className="wk-quick-template-empty"><p>No templates yet. Use Create template above to get started.</p></div>)}
   </aside>;
 }
 
@@ -368,11 +368,12 @@ export function TasksPage({ notify, openTaskId = null, onCloseLinked, initialVie
       <header><div><span className="wk-task-header-eyebrow">{view === "week" ? "My week" : "Your tasks"}</span>
         <h1 id="wk-task-heading">{view === "week" ? `Week of ${new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric", timeZone: "UTC" }).format(new Date(`${visibleWeek}T12:00:00Z`))}` : view === "inbox" ? "Quick tasks" : activeList?.name ?? taskViews.find((item) => item.key === view)?.label}</h1>
         {view === "inbox" && <p>Capture now. Decide when it deserves your attention.</p>}
+        {view === "week" && <p>{tasks.length}{hasMore ? '+' : ''} tasks · {zone}</p>}
         {view === "today" && !activeList && <p>{new Intl.DateTimeFormat(undefined, { weekday: "long", month: "long", day: "numeric", timeZone: "UTC" }).format(new Date(`${today}T12:00:00Z`))} · {zone}</p>}</div>
         <Button ref={planningButtonRef} variant="secondary" size="compact" aria-expanded={panelOpen} onClick={() => setPanelOpen((open) => !open)}><SlidersHorizontal size={15} aria-hidden="true" /> Task views</Button>
       </header>
       {planningError && <div className="wk-task-load-error" role="alert"><p>{planningError}</p><Button variant="secondary" onClick={() => void loadPlanning()}>Try again</Button></div>}
-      {view === "inbox" && <div className="wk-quick-tabbar"><span>Inbox · {tasks.length}{hasMore ? "+" : ""}</span><button type="button" onClick={() => navigate("/tasks/templates")}>Templates</button></div>}
+      {view === "inbox" && <div className="wk-quick-tabbar"><span>Inbox · {tasks.length}{hasMore ? "+" : ""}</span></div>}
       <div className={view === "inbox" ? "wk-quick-layout" : `wk-task-body${view === "week" ? " wk-task-body--week" : ""}`}><div className={view === "inbox" ? "wk-quick-list-panel" : undefined}>
       {planningReady && view !== "completed" && view !== "week" && <TaskQuickAdd view={view} today={today} zone={zone} listId={activeListId} onCreated={(task) => { notify("Task added"); setSelected(task); void load(); }} />}
       {error && <div className="wk-task-load-error" role="alert"><p>{error}</p><Button variant="secondary" onClick={() => void load()}>Try again</Button></div>}

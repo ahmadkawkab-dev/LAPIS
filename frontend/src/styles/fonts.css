@@ -1,5 +1,19 @@
 /* Self-hosted variable fonts; upstream licenses are in public/fonts. */
 @font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url('/fonts/inter.ttf') format('truetype');
+}
+@font-face {
+  font-family: 'Roboto Mono';
+  font-style: normal;
+  font-weight: 100 700;
+  font-display: swap;
+  src: url('/fonts/roboto-mono.ttf') format('truetype');
+}
+@font-face {
   font-family: 'Instrument Sans';
   font-style: normal;
   font-weight: 400 700;

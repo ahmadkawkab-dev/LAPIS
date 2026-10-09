@@ -141,13 +141,13 @@
 .wk-calendar-head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); margin-block-end: var(--space-4); }
 .wk-calendar-head h2 { margin: 0; font-size: 1.25rem; }
 .wk-calendar-head > div { display: flex; }
-.wk-calendar-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: var(--space-1); }
+.wk-calendar .wk-calendar-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: var(--space-1); }
 .wk-calendar-weekday { padding-block: var(--space-2); color: var(--muted-foreground); font-size: var(--text-meta); text-align: center; }
-.wk-calendar-grid button { min-width: 0; min-height: var(--target-size); display: grid; place-content: center; gap: 2px; padding: 0; border: 1px solid transparent; border-radius: var(--radius-control); color: var(--foreground); background: transparent; }
-.wk-calendar-grid button:disabled { color: var(--muted-foreground); background: transparent; opacity: .6; }
-.wk-calendar-grid button:not(:disabled):hover { background: var(--hover); }
-.wk-calendar-grid button[aria-pressed="true"] { background: var(--selected); font-weight: 650; }
-.wk-calendar-grid .wk-calendar-today { border-color: var(--control-border); }
+.wk-calendar .wk-calendar-grid button { min-width: 0; min-height: var(--target-size); display: grid; place-content: center; gap: 2px; padding: 0; border: 1px solid transparent; border-radius: var(--radius-control); color: var(--foreground); background: transparent; }
+.wk-calendar .wk-calendar-grid button:disabled { color: var(--muted-foreground); background: transparent; opacity: .6; }
+.wk-calendar .wk-calendar-grid button:not(:disabled):hover { background: var(--hover); }
+.wk-calendar .wk-calendar-grid button[aria-pressed="true"] { background: var(--selected); font-weight: 650; }
+.wk-calendar .wk-calendar-grid .wk-calendar-today { border-color: var(--control-border); }
 .wk-calendar-dot { width: .3rem; height: .3rem; border-radius: 50%; background: var(--primary); margin-inline: auto; }
 .wk-calendar-context { padding: var(--space-5); color: var(--muted-foreground); }
 .wk-calendar-context h3 { margin: var(--space-3) 0 var(--space-2); color: var(--foreground); font-size: 1.125rem; }

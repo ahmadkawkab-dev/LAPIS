@@ -9,6 +9,7 @@ using Microsoft.AspNetCore.SignalR;
 public sealed class BoardHub(
     BoardAccess boardAccess,
     IBoardConnectionRegistry connections,
+    IBoardRealtimePublisher publisher,
     INoteGeometryPreviewRegistry previews,
     INoteEditingRegistry editing,
     IBoardCursorRegistry cursors,
@@ -20,10 +21,13 @@ public sealed class BoardHub(
     public async Task<BoardPresenceSnapshot> JoinBoard(Guid boardId)
     {
         var userId = CurrentUserId();
+        await using var lifecycle = await connections.EnterLifecycleAsync(boardId, Context.ConnectionAborted);
         if (!await boardAccess.CanAccessAsync(userId, boardId, Context.ConnectionAborted))
             throw new HubException("Forbidden");
 
-        var presence = connections.Add(boardId, userId, Context.ConnectionId);
+        BoardConnectionMutation presence;
+        try { presence = connections.Add(boardId, userId, Context.ConnectionId); }
+        catch (InvalidOperationException) { throw new HubException("Forbidden"); }
         try
         {
             await Groups.AddToGroupAsync(
@@ -38,10 +42,8 @@ public sealed class BoardHub(
         catch
         {
             var rollback = connections.Remove(boardId, userId, Context.ConnectionId);
-            await Groups.RemoveFromGroupAsync(
-                Context.ConnectionId,
-                BoardRealtimeGroups.ForBoard(boardId),
-                CancellationToken.None);
+            // Removal retains native cleanup independently; a failed join cannot
+            // leave an eligible registry subscription or mask its original error.
             if (rollback.Changed)
                 await TryBroadcastPresenceAsync(rollback.Snapshot, CancellationToken.None);
             throw;
@@ -55,15 +57,13 @@ public sealed class BoardHub(
     public async Task LeaveBoard(Guid boardId)
     {
         var userId = CurrentUserId();
+        await using var lifecycle = await connections.EnterLifecycleAsync(boardId, Context.ConnectionAborted);
         foreach (var preview in previews.EndBoard(boardId, Context.ConnectionId))
             await BroadcastEndedAsync(preview, CancellationToken.None);
         var stoppedEditing = editing.EndBoard(boardId, Context.ConnectionId);
         var stoppedCursors = cursors.EndBoard(boardId, Context.ConnectionId);
         var presence = connections.Remove(boardId, userId, Context.ConnectionId);
-        await Groups.RemoveFromGroupAsync(
-            Context.ConnectionId,
-            BoardRealtimeGroups.ForBoard(boardId),
-            CancellationToken.None);
+        // Native cleanup is queued by Remove; it never decides authorization.
         foreach (var stopped in stoppedEditing)
             await TryBroadcastEditingStoppedAsync(stopped, CancellationToken.None);
         foreach (var stopped in stoppedCursors)
@@ -191,10 +191,8 @@ public sealed class BoardHub(
             request.BaseVersion,
             request.Sequence,
             timeProvider.GetUtcNow());
-        await Clients.OthersInGroup(BoardRealtimeGroups.ForBoard(request.BoardId)).SendAsync(
-            BoardRealtimeEvents.NoteGeometryPreview,
-            message,
-            Context.ConnectionAborted);
+        await publisher.PublishBoardExceptAsync(request.BoardId, Context.ConnectionId,
+            BoardRealtimeEvents.NoteGeometryPreview, message, Context.ConnectionAborted);
     }
 
     public async Task EndNoteGeometryPreview(EndNoteGeometryPreviewRequest request)
@@ -217,27 +215,15 @@ public sealed class BoardHub(
         var stoppedEditing = editing.EndConnection(Context.ConnectionId);
         var stoppedCursors = cursors.EndConnection(Context.ConnectionId);
         var presenceSnapshots = connections.RemoveConnection(Context.ConnectionId);
-        var recipients = ended
-            .Select(preview => preview.BoardId)
-            .Distinct()
-            .ToDictionary(
-                boardId => boardId,
-                boardId => connections.GetConnections(boardId)
-                    .Where(connectionId => connectionId != Context.ConnectionId)
-                    .ToArray());
         using var cleanupTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(2));
         foreach (var boardPreviews in ended.GroupBy(preview => preview.BoardId))
         {
             try
             {
-                var connectionIds = recipients[boardPreviews.Key];
-                if (connectionIds.Length == 0) continue;
                 foreach (var preview in boardPreviews)
                 {
-                    await Clients.Clients(connectionIds).SendAsync(
-                        BoardRealtimeEvents.NoteGeometryPreviewEnded,
-                        Ended(preview),
-                        cleanupTimeout.Token);
+                    await publisher.PublishBoardExceptAsync(boardPreviews.Key, Context.ConnectionId,
+                        BoardRealtimeEvents.NoteGeometryPreviewEnded, Ended(preview), cleanupTimeout.Token);
                 }
             }
             catch (Exception cleanupException)
@@ -268,53 +254,20 @@ public sealed class BoardHub(
     private Task BroadcastEndedAsync(
         ActiveNoteGeometryPreview preview,
         CancellationToken cancellationToken) =>
-        Clients.OthersInGroup(BoardRealtimeGroups.ForBoard(preview.BoardId)).SendAsync(
-            BoardRealtimeEvents.NoteGeometryPreviewEnded,
-            Ended(preview),
-            cancellationToken);
+        publisher.PublishBoardExceptAsync(preview.BoardId, Context.ConnectionId,
+            BoardRealtimeEvents.NoteGeometryPreviewEnded, Ended(preview), cancellationToken);
 
-    private Task TryBroadcastPresenceToOthersAsync(
-        BoardPresenceSnapshot snapshot,
-        CancellationToken cancellationToken)
-    {
-        var connectionIds = connections.GetConnections(snapshot.BoardId)
-            .Where(connectionId => connectionId != Context.ConnectionId)
-            .ToArray();
-        return connectionIds.Length == 0
-            ? Task.CompletedTask
-            : TrySendPresenceAsync(Clients.Clients(connectionIds), snapshot, cancellationToken);
-    }
+    private Task TryBroadcastPresenceToOthersAsync(BoardPresenceSnapshot snapshot, CancellationToken ct) =>
+        TrySendPresenceAsync(snapshot, Context.ConnectionId, ct);
 
-    private Task TryBroadcastPresenceAsync(
-        BoardPresenceSnapshot snapshot,
-        CancellationToken cancellationToken)
-    {
-        var connectionIds = connections.GetConnections(snapshot.BoardId);
-        return connectionIds.Count == 0
-            ? Task.CompletedTask
-            : TrySendPresenceAsync(Clients.Clients(connectionIds), snapshot, cancellationToken);
-    }
+    private Task TryBroadcastPresenceAsync(BoardPresenceSnapshot snapshot, CancellationToken ct) =>
+        TrySendPresenceAsync(snapshot, null, ct);
 
-    private async Task TrySendPresenceAsync(
-        IClientProxy clients,
-        BoardPresenceSnapshot snapshot,
-        CancellationToken cancellationToken)
+    private async Task TrySendPresenceAsync(BoardPresenceSnapshot snapshot, string? excluded, CancellationToken ct)
     {
-        try
-        {
-            await clients.SendAsync(
-                BoardRealtimeEvents.BoardPresenceChanged,
-                snapshot,
-                cancellationToken);
-        }
-        catch (Exception presenceException)
-        {
-            logger.LogDebug(
-                presenceException,
-                "Presence snapshot {Revision} for board {BoardId} was not delivered",
-                snapshot.Revision,
-                snapshot.BoardId);
-        }
+        try { await publisher.PublishBoardExceptAsync(snapshot.BoardId, excluded,
+            BoardRealtimeEvents.BoardPresenceChanged, snapshot, ct); }
+        catch (Exception exception) { logger.LogDebug(exception, "Presence snapshot {Revision} for board {BoardId} was not delivered", snapshot.Revision, snapshot.BoardId); }
     }
 
     private Task TryBroadcastEditingStartedAsync(
@@ -359,16 +312,10 @@ public sealed class BoardHub(
         TEvent message,
         CancellationToken cancellationToken)
     {
-        var connectionIds = connections.GetConnections(boardId)
-            .Where(connectionId => connectionId != Context.ConnectionId)
-            .ToArray();
-        if (connectionIds.Length == 0) return;
         try
         {
-            await Clients.Clients(connectionIds).SendAsync(
-                eventName,
-                message,
-                cancellationToken);
+            await publisher.PublishBoardExceptAsync(boardId, Context.ConnectionId,
+                eventName, message, cancellationToken);
         }
         catch (Exception editingException)
         {
@@ -386,16 +333,10 @@ public sealed class BoardHub(
         TEvent message,
         CancellationToken cancellationToken)
     {
-        var connectionIds = connections.GetConnections(boardId)
-            .Where(connectionId => connectionId != Context.ConnectionId)
-            .ToArray();
-        if (connectionIds.Length == 0) return;
         try
         {
-            await Clients.Clients(connectionIds).SendAsync(
-                eventName,
-                message,
-                cancellationToken);
+            await publisher.PublishBoardExceptAsync(boardId, Context.ConnectionId,
+                eventName, message, cancellationToken);
         }
         catch (Exception cursorException)
         {

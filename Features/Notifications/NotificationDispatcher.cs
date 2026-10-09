@@ -17,7 +17,7 @@ public interface INotificationPushSender
 }
 
 public sealed class NotificationDispatcher(IServiceScopeFactory scopes, TimeProvider clock,
-    IHubContext<BoardHub> hub, INotificationPushSender push, IOptions<NotificationOptions> options,
+    IHubContext<BoardHub> hub, IBoardConnectionRegistry connections, INotificationPushSender push, IOptions<NotificationOptions> options,
     ILogger<NotificationDispatcher> logger) : BackgroundService
 {
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -200,9 +200,24 @@ public sealed class NotificationDispatcher(IServiceScopeFactory scopes, TimeProv
                 await push.SendAsync(db, work, notification, preference, ct);
             return;
         }
+        long? boardRevision = null;
+        if (notification.BoardId is Guid boardId)
+        {
+            // Delivery work does not carry a board ID. Once the payload identifies
+            // one, capture its revision and revalidate the current membership
+            // incarnation. Never attach a new revision to old visibility results.
+            boardRevision = connections.PublicationRevision(boardId);
+            if (boardRevision is null) throw new BoardRecipientsChangedException();
+            if (!await NotificationEndpoints.Visible(db, work.UserId).AnyAsync(item =>
+                    item.Id == notification.Id && item.Revision == work.NotificationRevision && item.DismissedAt == null, ct)) return;
+        }
         await push.QueueAsync(db, notification, now, ct);
-        await hub.Clients.User(work.UserId.ToString()).SendAsync("NotificationChanged",
-            new NotificationChangedEvent(work.Id, work.UserId, NotificationDto.From(notification)), ct);
+        var message = new NotificationChangedEvent(work.Id, work.UserId, NotificationDto.From(notification));
+        if (notification.BoardId is Guid sensitiveBoard)
+            await connections.StartUserPublication(sensitiveBoard, boardRevision!.Value,
+                () => hub.Clients.User(work.UserId.ToString()).SendAsync("NotificationChanged", message, ct));
+        else
+            await hub.Clients.User(work.UserId.ToString()).SendAsync("NotificationChanged", message, ct);
     }
 
     internal static bool Enabled(NotificationPreference preference, NotificationType type) => type switch

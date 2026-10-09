@@ -1,8 +1,8 @@
 .board-chat {
   position: absolute; inset: 0 0 0 auto; z-index: var(--layer-panel);
-  width: min(390px, 100%); display: flex; flex-direction: column; min-height: 0;
+  width: min(var(--board-chat-width), 100%); display: flex; flex-direction: column; min-height: 0;
   color: var(--foreground); background: var(--surface); border-left: 1px solid var(--border);
-  box-shadow: var(--shadow-panel); font-size: var(--text-body);
+  box-shadow: var(--shadow-panel); font-size: var(--text-body); animation: wk-panel-enter var(--motion-panel) var(--ease-enter) both;
 }
 .chat-header { display: flex; align-items: center; gap: .25rem; padding: 1rem; border-bottom: 1px solid var(--border); }
 .chat-header > div { flex: 1; min-width: 0; }
@@ -73,7 +73,7 @@
 .chat-schedule-hint, .chat-schedule-warning { margin: .1rem 0 .25rem; font-size: var(--text-meta); line-height: 1.4; color: var(--muted-foreground); }
 .chat-schedule-warning { color: var(--destructive); }
 .chat-schedule-actions { display: flex; align-items: center; gap: .5rem; margin-top: .5rem; }
-.chat-schedule-actions span { flex: 1; color: var(--muted-foreground); font-size: var(--text-meta); line-height: 1.4; }
+.chat-schedule-actions > span { flex: 1; min-width: 0; overflow-wrap: anywhere; color: var(--muted-foreground); font-size: var(--text-meta); line-height: 1.4; }
 .chat-schedule-actions .wk-button { flex-shrink: 0; }
 .chat-badge { border-radius: 1rem; background: var(--primary); color: var(--primary-foreground); padding: .05rem .3rem; font-size: var(--text-meta); }
 .chat-typing { min-height: 1.5rem; padding: .2rem 1rem; color: var(--muted-foreground); font-size: var(--text-meta); overflow-wrap: anywhere; }
