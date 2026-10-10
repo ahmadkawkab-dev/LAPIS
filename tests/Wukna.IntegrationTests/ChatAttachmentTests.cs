@@ -78,7 +78,7 @@ public sealed class ChatAttachmentTests(PostgresFixture postgres)
     }
     private static async Task<byte[]> ImageBytes()
     {
-        using var image = new Image<Rgba32>(36, 20, Color.CornflowerBlue);
+        using var image = new Image<Rgba32>(36, 20, Color.CornflowerBlue.ToPixel<Rgba32>());
         using var output = new MemoryStream(); await image.SaveAsync(output, new PngEncoder(), Ct); return output.ToArray();
     }
     private static async Task<HttpResponseMessage> Upload(HttpClient http, SeedData seed, Guid? operation = null,
