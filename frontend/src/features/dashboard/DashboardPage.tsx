@@ -6,6 +6,7 @@ import type { AuthSession } from "../../auth";
 import { Button } from "../../components/ui/Button";
 import { addDays, dateInZone } from "../../date";
 import { taskWritePayload } from "../tasks/taskView";
+import { boardCardTone } from "../boards/boardCardTone";
 import "./dashboard.css";
 
 type Snapshot = {
@@ -181,7 +182,7 @@ export function DashboardPage({ user, boards, boardsLoading, boardsError, retryB
               {boardsError ? <div className="wk-dashboard-inline-error" role="alert">{boardsError} <button onClick={retryBoards}>Try again</button></div>
                 : boardsLoading ? <LoadingSkeleton layout="cards" label="Loading boards…" />
                   : recentBoards.length ? <div className="wk-dashboard-board-grid">{recentBoards.map((board) =>
-                    <button key={board.id} onClick={() => navigate(`/boards/${board.id}`)}>
+                    <button key={board.id} data-board-id={board.id} data-board-tone={board.cardColor ?? boardCardTone(board.id)} onClick={() => navigate(`/boards/${board.id}`)}>
                       <LayoutDashboard size={16} aria-hidden="true" /><strong>{board.title}</strong>
                       <small>{board.noteCount} {board.noteCount === 1 ? "note" : "notes"} · {board.memberCount} {board.memberCount === 1 ? "member" : "members"}</small>
                     </button>)}</div>

@@ -485,7 +485,9 @@ function WorkspaceContent({
         setBoard((current) => current &&
           Date.parse(current.updatedAt) > Date.parse(message.updatedAt)
           ? current
-          : current && { ...current, title: message.title, updatedAt: message.updatedAt });
+          : current && { ...current, title: message.title, updatedAt: message.updatedAt,
+            ...((message.cardColorVersion ?? 0) >= (current.cardColorVersion ?? 0)
+              ? { cardColor: message.cardColor, cardColorVersion: message.cardColorVersion } : {}) });
       }),
       realtimeConnection.on<BoardScopedEvent>(realtimeEvents.membersChanged, (message) => {
         if (message.boardId !== id) return;
@@ -924,7 +926,7 @@ function WorkspaceContent({
     };
   }, [viewport.controller, editorNavigation.inspectorNoteId]);
   return (
-    <div className="workspace">
+    <div className="workspace" data-board-id={id}>
       <CollaborationAnnouncements
         editing={remoteEditing}
         members={members}

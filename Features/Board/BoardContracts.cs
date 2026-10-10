@@ -8,7 +8,9 @@ public sealed record BoardDetailDto(
     DateTimeOffset CreatedAt,
     DateTimeOffset UpdatedAt,
     BoardRole Role,
-    bool CanEdit);
+    bool CanEdit,
+    string? CardColor = null,
+    int CardColorVersion = 0);
 
 public enum BoardPreviewNodeType
 {
@@ -43,6 +45,8 @@ public sealed record BoardListItemDto(
     int CompletedTaskItemCount,
     int MemberCount,
     IReadOnlyList<BoardPreviewNodeDto> PreviewNodes,
-    IReadOnlyList<BoardPreviewConnectionDto> PreviewConnections);
+    IReadOnlyList<BoardPreviewConnectionDto> PreviewConnections,
+    string? CardColor = null,
+    int CardColorVersion = 0);
 
 public sealed record BoardSummaryRecipient(Guid UserId, BoardListItemDto Summary);

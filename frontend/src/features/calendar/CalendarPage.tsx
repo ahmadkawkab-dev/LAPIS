@@ -266,12 +266,12 @@ export function CalendarPage({ notify, navigate }: {
     {!loading && !error && <>
       {hasMore && <div className="wk-calendar-limit" role="status">More items are available in this six-week range. <Button variant="secondary" size="compact" disabled={loadingMore} onClick={() => void loadMoreCalendar()}>{loadingMore ? "Loading…" : "Load more"}</Button></div>}
       {view === "month" ? <div className="wk-calendar-month">
-        <div className="wk-calendar-weekdays">{["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((day) => <span key={day}>{day}</span>)}</div>
+        <div className="wk-calendar-weekdays">{["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((day) => <span key={day}><abbr className="wk-calendar-weekday-full" title={day}>{day}</abbr><abbr className="wk-calendar-weekday-short" title={day}>{day.slice(0, 2)}</abbr></span>)}</div>
         <div className="wk-calendar-grid">{days.map((day) => {
           const entries = dayItems.get(day) ?? [];
           return <section key={day} onDragOver={(event) => overDay(event, day)} onDragLeave={() => { if (dropDate === day) setDropDate(null); }} onDrop={(event) => dropOnDay(event, day)}
             className={`wk-calendar-day${day.slice(0, 7) === month.slice(0, 7) ? "" : " wk-calendar-day--outside"}${day === currentDate ? " wk-calendar-day--today" : ""}${day === selectedDate ? " wk-calendar-day--selected" : ""}${dropDate === day ? " wk-calendar-day--drop" : ""}`}>
-            <button className="wk-calendar-day-number" aria-current={day === currentDate ? "date" : undefined} aria-pressed={day === selectedDate} aria-label={`${dayLabel(day, { weekday: "long", month: "long", day: "numeric" })}, ${entries.length} items`} onClick={() => onDay(day)}>{Number(day.slice(-2))}{day === currentDate && <span className="wk-sr-only">, Today</span>}</button>
+            <button className="wk-calendar-day-number" aria-current={day === currentDate ? "date" : undefined} aria-pressed={day === selectedDate} aria-label={`${dayLabel(day, { weekday: "long", month: "long", day: "numeric" })}, ${entries.length} items`} onClick={() => onDay(day)}><span className="wk-calendar-date">{Number(day.slice(-2))}</span>{day === currentDate && <span className="wk-sr-only">, Today</span>}</button>
             <div className="wk-calendar-day-items">{entries.slice(0, 3).map((item) => <button key={`${item.source}-${item.id}`} className={`wk-calendar-item wk-calendar-item--${item.source}`}
               onContextMenu={(event) => onItemContextMenu(event, item)} aria-keyshortcuts="Shift+F10"
               onKeyDown={(event) => onItemActionKey(event, item)}

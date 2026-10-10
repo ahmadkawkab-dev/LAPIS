@@ -22,7 +22,9 @@ public sealed class BoardSummaryReader(WuknaDbContext db)
         int TaskListCount,
         int TaskItemCount,
         int CompletedTaskItemCount,
-        int MemberCount);
+        int MemberCount,
+        string? CardColor,
+        int CardColorVersion);
 
     private sealed record PreviewNodeRow(
         Guid BoardId,
@@ -78,7 +80,9 @@ public sealed class BoardSummaryReader(WuknaDbContext db)
                 membership.Board.Notes.Count(note => note.Kind == NoteKind.ChecklistItem),
                 membership.Board.Notes.Count(note =>
                     note.Kind == NoteKind.ChecklistItem && note.IsCompleted),
-                membership.Board.Memberships.Count))
+                membership.Board.Memberships.Count,
+                membership.Board.CardColor,
+                membership.Board.CardColorVersion))
             .ToListAsync(cancellationToken);
 
         if (boards.Count == 0) return [];
@@ -161,6 +165,8 @@ public sealed class BoardSummaryReader(WuknaDbContext db)
                 board.CompletedTaskItemCount,
                 board.MemberCount,
                 nodesByBoard.GetValueOrDefault(board.Id) ?? [],
-                connectionsByBoard.GetValueOrDefault(board.Id) ?? []))).ToArray();
+                connectionsByBoard.GetValueOrDefault(board.Id) ?? [],
+                board.CardColor,
+                board.CardColorVersion))).ToArray();
     }
 }

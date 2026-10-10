@@ -27,6 +27,7 @@ public static class BoardEndpoints
     public static IEndpointRouteBuilder MapBoardEndpoints(this IEndpointRouteBuilder endpoints)
     {
         var group = endpoints.MapGroup("/api/boards").RequireAuthorization();
+        group.MapBoardAppearanceEndpoints();
 
         group.MapGet("/", async (HttpContext context, BoardSummaryReader reader,
             CancellationToken cancellationToken) =>
@@ -51,7 +52,9 @@ public static class BoardEndpoints
                     membership.Board.CreatedAt,
                     membership.Board.UpdatedAt,
                     membership.Role,
-                    membership.Role == BoardRole.Owner || membership.CanEdit))
+                    membership.Role == BoardRole.Owner || membership.CanEdit,
+                    membership.Board.CardColor,
+                    membership.Board.CardColorVersion))
                 .SingleOrDefaultAsync(cancellationToken);
             return board is null ? Results.NotFound() : Results.Ok(board);
         });
@@ -128,12 +131,12 @@ public static class BoardEndpoints
                 activity.MarkUpdated(db, boardId);
                 await db.SaveChangesAsync(cancellationToken);
                 await realtime.BoardUpdatedAsync(new BoardUpdatedEvent(
-                    board.Id, board.Title, board.UpdatedAt));
+                    board.Id, board.Title, board.UpdatedAt, board.CardColor, board.CardColorVersion));
             }
 
             return Results.Ok(new BoardDetailDto(
                 board.Id, board.Title, board.CreatedAt, board.UpdatedAt,
-                BoardRole.Owner, true));
+                BoardRole.Owner, true, board.CardColor, board.CardColorVersion));
         });
 
         group.MapDelete("/{boardId:guid}", async (

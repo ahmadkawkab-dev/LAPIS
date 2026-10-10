@@ -60,7 +60,7 @@ The October 4 implementation and browser evidence are recorded in [the refactor 
 
 Tokens live in `frontend/src/styles/tokens.css`. Components use semantic tokens instead of hard-coded product colors or arbitrary stacking values.
 
-The remaining legacy board geometry rules in `frontend/src/styles.css` also reference these tokens. Palette values belong in `tokens.css`; note pigments, contrast-checked note ink, and collaborator identity are the deliberate content/identity exceptions. As board geometry migrates, remove superseded legacy rules instead of introducing a second palette.
+The remaining legacy board geometry rules in `frontend/src/styles.css` also reference these tokens. Baseline palette values belong in `tokens.css`; Color Studio's curated color overrides live in `theme/curatedPalettes.ts` and use the same semantic tokens. Note pigments, contrast-checked note ink, and collaborator identity are the deliberate content/identity exceptions. As board geometry migrates, remove superseded legacy rules instead of introducing a second design system.
 
 Root tokens own both light and dark palettes, including native-dialog portals outside the shell. Keep selected foreground/surfaces, control borders and status pairs together. Do not add a competing shell palette. The semantic contrast regression test checks normal text at 4.5:1 and control/focus boundaries at 3:1 against their intended surfaces.
 
@@ -370,6 +370,12 @@ Verify representative widths of 320, 375, 390, 430, 768, 1024, 1280, and 1440+ p
 ## Themes
 
 Light and dark themes are reviewed independently. Do not implement dark mode as an inversion. Text, controls, pigments, collaboration colors, focus, borders, disabled states, connections, remote geometry, and cursors must remain legible in both.
+
+[Color Studio](COLOR_STUDIO.md) offers six curated palettes in Preferences → Appearance, with scoped previews, comparison, explicit application, and reset. Palette selection is local to the browser and independent of Light/Dark/System. Default colors stay active until the user chooses a palette. No palette may override note pigments, identity colors, typography, motion, or geometry tokens. Custom user palettes remain future work.
+
+Color Studio palettes use three coordinated families: dominant workspace/canvas, secondary navigation/supporting surfaces, and scarce accent actions/focus. The 60/30/10 balance expresses hierarchy, with independent light/dark tonal values and contrast checks. Samples label the families and show six board identities and an unchanged set of note pigments.
+
+Board colors use six stable slots across Home, Boards, sidebar indicators, and individual board chrome/canvas. New automatic boards use unused slots before balanced reuse; personal assignment history persists per account on this browser. Explicit shared choices retain the existing six server IDs and take priority, with palette-specific labels and swatches. Members render shared slots through their own theme. Original-theme accents remain Sage, Blue, Lavender, Clay, Gold, and Rose. Versioned writes and existing board events synchronize manual choices; automatic histories can differ between devices. Color changes update scoped CSS without touching board geometry or interaction state. See [Color Studio](COLOR_STUDIO.md) for persistence and accessibility details.
 
 ## Motion
 

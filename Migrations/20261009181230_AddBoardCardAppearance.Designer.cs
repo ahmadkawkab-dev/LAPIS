@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using Wukna.Shared.Data.AppDbContext;
@@ -11,9 +12,11 @@ using Wukna.Shared.Data.AppDbContext;
 namespace Wukna.Migrations
 {
     [DbContext(typeof(WuknaDbContext))]
-    partial class WuknaDbContextModelSnapshot : ModelSnapshot
+    [Migration("20261009181230_AddBoardCardAppearance")]
+    partial class AddBoardCardAppearance
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder

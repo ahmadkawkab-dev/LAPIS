@@ -189,3 +189,40 @@
   .wk-calendar-day-number { min-width: var(--target-size); min-height: var(--target-size); }
   .wk-calendar-mobile-agenda { margin-top: var(--space-4); }
 }
+
+/* Separate the small marker from its tap area; center both even in narrow cells. */
+@media (max-width: 767px) {
+  .wk-calendar-paging { max-width: 100%; flex-wrap: wrap; }
+  .wk-calendar-mobile-agenda li button > span:last-child { min-width: 0; overflow-wrap: anywhere; }
+  .wk-calendar-day { padding-inline: 0; }
+  .wk-calendar-day-number {
+    width: min(100%, var(--target-size));
+    min-width: 0;
+    display: grid;
+    place-items: center;
+    margin-inline: auto;
+    padding: 0;
+  }
+  .wk-calendar-day--today button.wk-calendar-day-number,
+  .wk-calendar-day--today button.wk-calendar-day-number:hover {
+    background: transparent;
+    color: var(--foreground);
+  }
+  .wk-calendar-day--today .wk-calendar-date {
+    display: grid;
+    place-items: center;
+    width: min(1.5rem, 100%);
+    aspect-ratio: 1;
+    border-radius: 50%;
+    color: var(--primary-foreground);
+    background: var(--primary);
+  }
+}
+
+.wk-calendar-weekdays abbr { text-decoration: none; }
+.wk-calendar-weekday-short { display: none; }
+@media (max-width: 360px) {
+  .wk-calendar-weekdays > span { padding-inline: 0; }
+  .wk-calendar-weekday-full { display: none; }
+  .wk-calendar-weekday-short { display: inline; }
+}

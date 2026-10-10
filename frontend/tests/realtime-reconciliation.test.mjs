@@ -51,6 +51,16 @@ test('board summaries ignore older events and replace equal/newer snapshots', ()
     'Equal snapshot');
 });
 
+test('board summaries preserve newer shared color revisions when timestamps are equal', () => {
+  const current = { id: 'board-1', title: 'Current', updatedAt: '2026-01-02T00:00:00Z', cardColor: 'blue', cardColorVersion: 3 };
+  const stale = { ...current, cardColor: 'sage', cardColorVersion: 2, noteCount: 5 };
+  const merged = mergeBoardSummary([current], stale)[0];
+  assert.equal(merged.cardColor, 'blue');
+  assert.equal(merged.cardColorVersion, 3);
+  assert.equal(merged.noteCount, 5);
+  assert.equal(mergeBoardSummary([current], { ...current, cardColor: null, cardColorVersion: 4 })[0].cardColor, null);
+});
+
 test('presence replaces state only with a newer authoritative board revision', () => {
   const current = { boardId: 'board-1', revision: 4, viewers: [] };
   const stale = { boardId: 'board-1', revision: 3, viewers: [{ userId: 'user-1', connectionCount: 1 }] };

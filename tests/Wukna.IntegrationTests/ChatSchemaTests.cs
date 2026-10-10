@@ -23,9 +23,17 @@ public sealed class ChatSchemaTests(PostgresFixture postgres)
         var (board, owner, guest) = BoardWithMembers();
         await PostgresFixture.InsertHistoricalUserAsync(db, owner, ct);
         await PostgresFixture.InsertHistoricalUserAsync(db, guest, ct);
-        db.AttachRange(owner, guest);
-        db.Boards.Add(board);
-        await db.SaveChangesAsync(ct);
+        // Seed the historical schema explicitly: today's Board model contains
+        // appearance columns that did not exist before the chat migration.
+        await db.Database.ExecuteSqlInterpolatedAsync($"""
+            INSERT INTO boards (id, title, created_at, updated_at)
+            VALUES ({board.Id}, {board.Title}, {board.CreatedAt}, {board.UpdatedAt})
+            """, ct);
+        foreach (var member in board.Memberships)
+            await db.Database.ExecuteSqlInterpolatedAsync($"""
+                INSERT INTO board_memberships (board_id, user_id, role, can_edit)
+                VALUES ({board.Id}, {member.User.Id}, {(int)member.Role}, {member.CanEdit})
+                """, ct);
 
         await migrator.MigrateAsync(cancellationToken: ct);
         var settings = await db.BoardChatSettings.SingleAsync(ct);

@@ -10,10 +10,11 @@ import { Avatar, identityLabel } from "../ui/Avatar";
 import { Button, IconButton } from "../ui/Button";
 import { useReplayTour } from "../../features/onboarding/OnboardingProvider";
 import { Dialog } from "../ui/Dialog";
+import { boardCardTone } from '../../features/boards/boardCardTone';
 
 export function Sidebar({
   user, boards, activeBoardId, collapsed, onToggle, navigate, onCreateBoard,
-  onRenameBoard, onDeleteBoard, onOpenAccount,
+  onRenameBoard, onDeleteBoard, onColorBoard, onOpenAccount,
 }: {
   user: AuthSession["user"];
   boards: BoardListItemDto[];
@@ -24,10 +25,12 @@ export function Sidebar({
   onCreateBoard: (title: string) => Promise<void>;
   onRenameBoard: (id: string, title: string) => Promise<void>;
   onDeleteBoard: (id: string) => Promise<void>;
+  onColorBoard: (id: string, color: BoardListItemDto['cardColor'], version: number) => Promise<void>;
   onOpenAccount: () => void;
 }) {
   const replayTour = useReplayTour();
   const [actionTarget, setActionTarget] = useState<BoardListItemDto | null>(null);
+  const actionBoard = actionTarget && boards.find(board => board.id === actionTarget.id);
   const [creating, setCreating] = useState(false);
   const [createTitle, setCreateTitle] = useState("");
   const [createBusy, setCreateBusy] = useState(false);
@@ -70,12 +73,12 @@ export function Sidebar({
   }
 
   function contextMenu(event: MouseEvent<HTMLButtonElement>, board: BoardListItemDto) {
-    if (board.role !== 1) return;
+    if (board.role !== 1 && !board.canEdit) return;
     event.preventDefault();
     setActionTarget(board);
   }
   function contextKey(event: KeyboardEvent<HTMLButtonElement>, board: BoardListItemDto) {
-    if (board.role !== 1 || !(event.key === "ContextMenu" || event.key === "F10" && event.shiftKey)) return;
+    if ((board.role !== 1 && !board.canEdit) || !(event.key === "ContextMenu" || event.key === "F10" && event.shiftKey)) return;
     event.preventDefault();
     setActionTarget(board);
   }
@@ -93,10 +96,11 @@ export function Sidebar({
   const boardLink = (board: BoardListItemDto) => (
     <button className={`wk-board-link${activeBoardId === board.id ? " wk-board-link--active" : ""}`}
       key={board.id} onClick={() => navigate(`/boards/${board.id}`)}
+      data-board-id={board.id} data-board-tone={board.cardColor ?? boardCardTone(board.id)}
       onContextMenu={(event) => contextMenu(event, board)} onKeyDown={(event) => contextKey(event, board)}
       aria-current={activeBoardId === board.id ? "page" : undefined}
-      aria-keyshortcuts={board.role === 1 ? "Shift+F10" : undefined}
-      title={board.role === 1 ? `${board.title} · Right-click for board actions` : board.title}>
+      aria-keyshortcuts={board.role === 1 || board.canEdit ? "Shift+F10" : undefined}
+      title={board.role === 1 || board.canEdit ? `${board.title} · Right-click for board actions` : board.title}>
       <span className="wk-board-dot" aria-hidden="true" /><span className="wk-board-link-title">{board.title}</span>{(chatUnread.get(board.id) ?? 0) > 0 && <span className="wk-nav-badge" aria-label={`${chatUnread.get(board.id)} unread chat messages`}>{chatUnread.get(board.id)! > 99 ? "99+" : chatUnread.get(board.id)}</span>}
     </button>
   );
@@ -117,7 +121,6 @@ export function Sidebar({
       <label className="wk-sidebar-search">
         <Search size={14} aria-hidden="true" />
         <input ref={searchRef} value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search boards" aria-label="Search boards" />
-        <kbd>⌘ K</kbd>
       </label>
     </div>
 
@@ -155,7 +158,7 @@ export function Sidebar({
           <Button variant="secondary" disabled={createBusy} onClick={() => setCreating(false)}>Cancel</Button></div>
       </form>
     </Dialog>}
-    {actionTarget && <BoardActionsDialog key={actionTarget.id} board={actionTarget}
-      onClose={() => setActionTarget(null)} onRenameBoard={onRenameBoard} onDeleteBoard={onDeleteBoard} />}
+    {actionBoard && <BoardActionsDialog key={actionBoard.id} board={actionBoard}
+      onClose={() => setActionTarget(null)} onRenameBoard={onRenameBoard} onDeleteBoard={onDeleteBoard} onColorBoard={onColorBoard} />}
   </aside>;
 }

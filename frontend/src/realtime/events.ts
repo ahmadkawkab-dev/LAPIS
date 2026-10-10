@@ -31,6 +31,8 @@ export type BoardUpdatedEvent = {
   boardId: string;
   title: string;
   updatedAt: string;
+  cardColor: BoardListItemDto['cardColor'];
+  cardColorVersion: number;
 };
 
 export type NoteChangedEvent = NoteDto;

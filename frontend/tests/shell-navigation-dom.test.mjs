@@ -14,7 +14,7 @@ const compiled = await build({
   plugins: [{ name: 'shell-dom-dependencies', setup(builder) {
     builder.onResolve({ filter: /^(react(?:-dom)?(?:\/.*)?|lucide-react)$/ }, args => ({ path: pathToFileURL(require.resolve(args.path)).href, external: true }));
     builder.onResolve({ filter: /\/api$/ }, () => ({ path: 'api', namespace: 'test' }));
-    builder.onLoad({ filter: /.*/, namespace: 'test' }, () => ({ contents: 'export const errorMessage = error => error.message; export const onboardingApi = {};' }));
+    builder.onLoad({ filter: /.*/, namespace: 'test' }, () => ({ contents: 'export const errorMessage = error => error.message; export const onboardingApi = {}; export class AuthApiError extends Error { constructor(code) { super(code); this.code = code; } }' }));
   } }],
 });
 const { AppShell } = await import(`data:text/javascript;base64,${Buffer.from(compiled.outputFiles[0].text).toString('base64')}`);

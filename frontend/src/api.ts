@@ -1,4 +1,5 @@
 import { apiFetch, AuthApiError } from "./auth";
+import type { BoardCardTone } from './features/boards/boardCardTone';
 
 export { AuthApiError };
 
@@ -9,6 +10,8 @@ export type BoardDetailDto = {
   updatedAt: string;
   role: 0 | 1;
   canEdit: boolean;
+  cardColor: BoardCardTone | null;
+  cardColorVersion: number;
 };
 export type PersonalTaskDto = {
   id: string;
@@ -328,6 +331,8 @@ export const boardApi = {
   create: (title: string) => request<BoardDetailDto>(boards, "POST", { title }),
   rename: (id: string, title: string) =>
     request<BoardDetailDto>(board(id), "PATCH", { title }),
+  appearance: (id: string, cardColor: BoardCardTone | null, expectedVersion: number) =>
+    request<BoardDetailDto>(`${board(id)}/appearance`, "PUT", { cardColor, expectedVersion }),
   remove: (id: string) => request<void>(board(id), "DELETE"),
   members: (id: string) => request<MemberDto[]>(`${board(id)}/members`),
   guestLimit: (id: string) => request<{ maxGuests: number; guestCount: number }>(`${board(id)}/guest-limit`),

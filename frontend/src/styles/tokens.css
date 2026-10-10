@@ -127,6 +127,17 @@
   --ease-settle: cubic-bezier(.2, .7, .2, 1);
   --ease-enter: cubic-bezier(0, 0, .2, 1);
   --ease-exit: cubic-bezier(.4, 0, 1, 1);
+  --palette-dominant: var(--background);
+  --palette-secondary: var(--secondary);
+  --palette-accent: var(--primary);
+  --palette-sidebar: var(--surface);
+  --palette-supporting: var(--surface);
+  --board-card-accent-sage: #769c6b;
+  --board-card-accent-blue: #668cb8;
+  --board-card-accent-lavender: #9b7db8;
+  --board-card-accent-clay: #ba785a;
+  --board-card-accent-gold: #b99643;
+  --board-card-accent-rose: #b97891;
   --board-card-alt-surface: #eee9f4;
   --selected-foreground: #274331;
 }

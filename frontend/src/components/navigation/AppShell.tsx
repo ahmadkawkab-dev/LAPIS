@@ -12,6 +12,7 @@ export function AppShell({
   onCreateBoard,
   onRenameBoard,
   onDeleteBoard,
+  onColorBoard,
   signOut,
   signOutEverywhere,
   notify,
@@ -24,6 +25,7 @@ export function AppShell({
   onCreateBoard: (title: string) => Promise<void>;
   onRenameBoard: (id: string, title: string) => Promise<void>;
   onDeleteBoard: (id: string) => Promise<void>;
+  onColorBoard: (id: string, color: BoardListItemDto['cardColor'], version: number) => Promise<void>;
   signOut: () => void;
   signOutEverywhere: () => void;
   notify: (message: string) => void;
@@ -67,6 +69,7 @@ export function AppShell({
         onCreateBoard={onCreateBoard}
         onRenameBoard={onRenameBoard}
         onDeleteBoard={onDeleteBoard}
+        onColorBoard={onColorBoard}
         onOpenAccount={() => navigate("/account/profile")}
       />
       <MobileHeader user={user} onHome={() => navigate("/home")} onOpenAccount={() => navigate("/account/profile")} />

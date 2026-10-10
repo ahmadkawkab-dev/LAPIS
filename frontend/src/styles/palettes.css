@@ -1,0 +1,8 @@
+/* Supporting color stays structural; action color remains scarce. */
+:root[data-color-palette] .wk-sidebar { background: var(--palette-sidebar); }
+:root[data-color-palette] :is(.wk-dashboard-summary-card, .wk-dashboard-main-column, .wk-dashboard-section, .wk-template-card) { background-color: var(--palette-supporting); }
+:root[data-color-palette] .wk-board-card-wrap[data-board-id] { background-color: var(--board-variation-card, var(--surface)); background-image: linear-gradient(165deg, var(--board-variation-card, var(--surface)), var(--surface)); }
+:root[data-color-palette] .wk-board-card-wrap[data-board-id] .wk-board-preview { background-color: var(--board-variation-card, var(--surface)); background-image: radial-gradient(circle, color-mix(in srgb, var(--muted-foreground) 23%, transparent) .75px, transparent .8px), linear-gradient(145deg, var(--board-variation-card, var(--surface)), var(--board-variation-chrome, var(--surface))); }
+:root[data-color-palette] .wk-board-card-wrap[data-board-id] .wk-board-preview--empty { background-image: linear-gradient(145deg, var(--board-variation-card, var(--surface)), var(--board-variation-chrome, var(--surface))); }
+:root[data-color-palette] .wk-dashboard-board-grid button[data-board-id] { background-color: var(--board-variation-card, var(--surface)); background-image: linear-gradient(145deg, var(--board-variation-card, var(--surface)), var(--board-variation-chrome, var(--surface))); }
+:root[data-color-palette] .wk-board-link[data-board-id] .wk-board-dot { background: var(--board-variation-indicator, var(--primary)); }

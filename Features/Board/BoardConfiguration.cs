@@ -14,6 +14,11 @@ public class BoardConfiguration : IEntityTypeConfiguration<Board>
               .HasMaxLength(200);
         entity.Property(board => board.CreatedAt).HasDefaultValueSql("now()");
         entity.Property(board => board.UpdatedAt).HasDefaultValueSql("now()");
+        entity.Property(board => board.CardColor).HasMaxLength(16);
+        entity.Property(board => board.CardColorVersion).HasDefaultValue(0);
+        entity.ToTable(table => table.HasCheckConstraint("ck_boards_card_color",
+            "card_color IS NULL OR card_color IN ('sage', 'blue', 'lavender', 'clay', 'gold', 'rose')"));
+        entity.ToTable(table => table.HasCheckConstraint("ck_boards_card_color_version", "card_color_version >= 0"));
     }
 }
 

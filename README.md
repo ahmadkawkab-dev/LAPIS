@@ -117,6 +117,7 @@ Users can:
 - Upload a profile picture
 - Configure interface preferences
 - Choose their preferred theme
+- Explore six coordinated three-family palettes and stable board variations in [Color Studio](docs/COLOR_STUDIO.md)
 - Manage notification and security preferences
 
 Profile information is also used throughout collaborative spaces to make it easier to recognize other members.

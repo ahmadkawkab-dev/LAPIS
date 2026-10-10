@@ -47,6 +47,7 @@ import {
   type BoardSummaryChangedEvent,
 } from "../realtime/events";
 import { mergeBoardSummary } from "../realtime/reconcile";
+import { syncBoardVariations } from '../theme/boardVariationState';
 
 const boardFromPath = (path: string) =>
   /^\/boards\/([0-9a-f-]{36})$/i.exec(path)?.[1] ?? null;
@@ -65,6 +66,11 @@ export default function App() {
     [boardsReady, setBoardsReady] = useState(false),
     [failure, setFailure] = useState("");
   const started = useRef(false);
+  const paletteAccountId = session?.user.id ?? null;
+  useEffect(() => {
+    if (!paletteAccountId) syncBoardVariations(null, []);
+    else if (boardsReady) syncBoardVariations(paletteAccountId, boards);
+  }, [paletteAccountId, boards, boardsReady]);
   const returnPath = useRef<string | null>(null);
   const notify = useCallback((message: string) => setNotice({ message, tone: "default" }), []);
   const warn = useCallback((message: string) => setNotice({ message, tone: "warning" }), []);
@@ -216,6 +222,24 @@ export default function App() {
     if (boardId === deletedId) navigate("/boards");
     notify("Board deleted");
   }
+  async function colorBoard(id: string, cardColor: BoardListItemDto['cardColor'], version: number) {
+    try {
+      const updated = await boardApi.appearance(id, cardColor, version);
+      setBoards(current => current.map(item => item.id === id && (item.cardColorVersion ?? 0) <= updated.cardColorVersion
+        ? { ...item, cardColor: updated.cardColor, cardColorVersion: updated.cardColorVersion, updatedAt: updated.updatedAt }
+        : item));
+      notify('Board color updated');
+    } catch (cause) {
+      if (cause instanceof AuthApiError && cause.code === 'board_appearance_conflict') {
+        const latest = await boardApi.get(id);
+        setBoards(current => current.map(item => item.id === id && (item.cardColorVersion ?? 0) <= latest.cardColorVersion
+          ? { ...item, ...latest } : item));
+      } else if (cause instanceof AuthApiError && (cause.status === 403 || cause.status === 404)) {
+        await loadBoards(false).catch(() => undefined);
+      }
+      throw cause;
+    }
+  }
   async function createBoard(title: string) {
     try {
       const board = await boardApi.create(title);
@@ -307,6 +331,7 @@ export default function App() {
       onCreateBoard={createBoard}
       onRenameBoard={renameBoard}
       onDeleteBoard={deleteBoard}
+      onColorBoard={colorBoard}
       signOut={() => void signOut(false)}
       signOutEverywhere={() => void signOut(true)}
       notify={notify}
@@ -351,6 +376,7 @@ export default function App() {
           retry={() => void loadBoards().catch(() => undefined)}
           navigate={navigate}
           onRenameBoard={renameBoard}
+          onColorBoard={colorBoard}
           onDeleteBoard={deleteBoard}
           onBoardLimitReached={() => warn("Board limit reached. You can have a maximum of 5 boards.")}
           create={createBoard}

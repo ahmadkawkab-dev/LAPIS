@@ -42,6 +42,8 @@ export function mergeBoardSummary(
   const existing = current.find((board) => board.id === incoming.id);
   if (existing && Date.parse(existing.updatedAt) > Date.parse(incoming.updatedAt))
     return current;
+  if (existing && (existing.cardColorVersion ?? 0) > (incoming.cardColorVersion ?? 0))
+    incoming = { ...incoming, cardColor: existing.cardColor, cardColorVersion: existing.cardColorVersion };
   const merged = existing
     ? current.map((board) => board.id === incoming.id ? incoming : board)
     : [...current, incoming];

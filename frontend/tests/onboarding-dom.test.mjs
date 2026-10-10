@@ -20,6 +20,7 @@ const compiled = await build({
     builder.onLoad({ filter: /.*/, namespace: 'test' }, () => ({ contents: `
       export const onboardingApi = { get: () => globalThis.tourDomApi.get(), save: value => globalThis.tourDomApi.save(value) };
       export const errorMessage = error => error.message;
+      export class AuthApiError extends Error { constructor(code) { super(code); this.code = code; } }
     ` }));
   } }],
 });

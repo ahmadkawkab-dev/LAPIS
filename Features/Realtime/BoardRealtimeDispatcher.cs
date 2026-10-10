@@ -9,7 +9,9 @@ using Microsoft.EntityFrameworkCore;
 public sealed record BoardUpdatedEvent(
     Guid BoardId,
     string Title,
-    DateTimeOffset UpdatedAt);
+    DateTimeOffset UpdatedAt,
+    string? CardColor = null,
+    int CardColorVersion = 0);
 
 public sealed record NoteDeletedEvent(Guid BoardId, Guid NoteId, uint Version);
 

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { Camera, Link2, LogOut, RefreshCw, Trash2, Unlink } from "lucide-react";
 import {
   getAccountStatus,
@@ -13,6 +13,7 @@ import { Field } from "../../components/ui/Field";
 import { Avatar } from "../../components/ui/Avatar";
 import { ThemeControl } from "../../components/ui/ThemeControl";
 import { NotificationPreferences } from "../notifications/NotificationPreferences";
+const ColorStudio = lazy(() => import('../../components/appearance/ColorStudio'));
 
 export function AccountPanel({
   user,
@@ -236,6 +237,7 @@ export function AccountPanel({
       <section className="wk-account-section" aria-labelledby="wk-appearance-heading">
         <h2 id="wk-appearance-heading">Appearance</h2>
         <ThemeControl />
+        <Suspense fallback={<p role="status">Opening Color Studio…</p>}><ColorStudio /></Suspense>
       </section>
 
       <NotificationPreferences key={user.id} userId={user.id} notify={notify} />

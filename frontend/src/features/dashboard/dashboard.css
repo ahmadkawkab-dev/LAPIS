@@ -43,11 +43,10 @@
 .wk-dashboard-quick-add .wk-button {   }
 .wk-dashboard-empty { margin: 0; padding: 1rem; color: var(--muted-foreground); font-size: .75rem; }
 .wk-dashboard-board-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .625rem; padding: 0 1rem 1rem; }
-.wk-dashboard-board-grid button { min-height: 6.5rem; display: flex; flex-direction: column; align-items: start; justify-content: space-between; padding: .75rem; border: 0; border-radius: var(--radius-control); color: var(--foreground); background: var(--selected); text-align: start; }
-.wk-dashboard-board-grid button:nth-child(3n + 2) { background: var(--status-info-surface); }
-.wk-dashboard-board-grid button:nth-child(3n) { background: var(--board-card-alt-surface); }
+.wk-dashboard-board-grid button { min-height: 6.5rem; display: flex; flex-direction: column; align-items: start; justify-content: space-between; padding: .75rem; border: 0; border-radius: var(--radius-control); color: var(--foreground); background-color: var(--board-card-tint); background-image: linear-gradient(145deg, var(--board-card-tint), color-mix(in srgb, var(--board-card-tint) 60%, var(--surface))); text-align: start; }
 .wk-dashboard-board-grid strong { max-width: 100%; overflow: hidden; font-size: var(--text-control); text-overflow: ellipsis; white-space: nowrap; }
 .wk-dashboard-board-grid small { color: var(--muted-foreground); font-size: var(--text-meta); }
+:root[data-theme='light'] .wk-dashboard-board-grid small { color: color-mix(in srgb, var(--muted-foreground) 75%, var(--foreground)); }
 .wk-dashboard-schedule { display: grid; gap: 0; margin: 0; padding: 0 .75rem .75rem; list-style: none; }
 .wk-dashboard-schedule li { display: grid; grid-template-columns: 4.5rem minmax(0, 1fr); gap: .5rem; padding: .625rem .25rem; border-top: 1px solid var(--border); }
 .wk-dashboard-schedule span { display: inline-flex; align-items: center; gap: .25rem; color: var(--muted-foreground); font-size: var(--text-meta); }
