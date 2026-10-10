@@ -23,6 +23,8 @@ jobs:
         run: dotnet restore tests/Wukna.IntegrationTests/Wukna.IntegrationTests.csproj
 
       - name: Build
+        env:
+          SIXLABORS_LICENSE_KEY: ${{ secrets.SIXLABORS_LICENSE_KEY }}
         run: dotnet build tests/Wukna.IntegrationTests/Wukna.IntegrationTests.csproj --configuration Release --no-restore
 
       - name: Test
